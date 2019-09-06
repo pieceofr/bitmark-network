@@ -1,0 +1,9 @@
+syntax = "proto3";
+package main;
+
+ message P2PMessage {
+    string command = 1;
+    repeated bytes Parameters = 2;
+  }
+
+  // protoc --go_out=../ p2pMessage.proto
