@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/gogo/protobuf/proto"
+	peer "github.com/libp2p/go-libp2p-peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
@@ -27,9 +28,7 @@ func (n *Node) SubHandler(ctx context.Context, sub *pubsub.Subscription) {
 			fmt.Fprintln(os.Stderr, err)
 			continue
 		}
-		if len(req.Parameters) == 3 {
-			log.Infof("-->>sub Recieve: %v  ID:%s \n", req.Command, shortID(string(req.Parameters[1])))
-		}
+
 		switch req.Command {
 		case "peer":
 			dataLength := len(req.Parameters)
@@ -37,11 +36,19 @@ func (n *Node) SubHandler(ctx context.Context, sub *pubsub.Subscription) {
 				log.Debugf("peer with too few data: %d items", dataLength)
 				break
 			}
+
 			if 8 != len(req.Parameters[2]) {
 				log.Debugf("peer with invalid timestamp=%v", req.Parameters[2])
 				break
 			}
+			id, err := peer.IDFromBytes(req.Parameters[0])
+			log.Infof("-->>sub Recieve: %v  ID:%s \n", req.Command, id.ShortString())
+			if err != nil {
+				log.Error("invalid id in requesting")
+			}
 			messagebus.Bus.Announce.Send("addpeer", req.Parameters[0], req.Parameters[1], req.Parameters[2])
+		default:
+			log.Infof("unreganized Command:%s ", req.Command)
 		}
 	}
 }

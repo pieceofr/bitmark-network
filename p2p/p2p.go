@@ -80,17 +80,27 @@ loop:
 		case <-shutdown:
 			break loop
 		case item := <-queue:
-			log.Infof("Node Module received control item")
+			log.Infof("-><- P2P recieve commend:%s", item.Command)
 			switch item.Command {
 			case "peer":
 				messageOut := P2PMessage{Command: item.Command, Parameters: item.Parameters}
 				msgBytes, err := proto.Marshal(&messageOut)
-				err = n.MuticastStream.Publish(multicastingTopic, msgBytes)
 				if err != nil {
-					log.Errorf("multicast error: %v\n", err)
+					log.Errorf("Marshal Message Error: %v\n", err)
 					break
 				}
-				log.Infof("<<--- multicasting PEER : %v\n", string(messageOut.Parameters[0]))
+				id, err := peer.IDFromBytes(messageOut.Parameters[0])
+				if err != nil {
+					log.Errorf("Inavalid ID format:%v", err)
+					break
+				}
+				err = n.MuticastStream.Publish(multicastingTopic, msgBytes)
+				if err != nil {
+					log.Errorf("Multicast Publish Error: %v\n", err)
+					break
+				}
+				log.Infof("<<--- multicasting PEER : %v\n", id.ShortString())
+
 			default:
 				if "N1" == item.Command || "N3" == item.Command || "X1" == item.Command || "X2" == item.Command ||
 					"X3" == item.Command || "X4" == item.Command || "X5" == item.Command || "X6" == item.Command ||
@@ -106,6 +116,7 @@ loop:
 							log.Errorf("Announce Message Error:%v", err)
 						}
 					}
+					n.printPeerStore()
 					go n.ConnectPeers()
 				}
 			}

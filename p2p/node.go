@@ -4,6 +4,7 @@ import (
 	"bitmark-network/messagebus"
 	"bitmark-network/util"
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -74,7 +75,6 @@ func (n *Node) Setup(configuration *Configuration) error {
 
 // NewHost create a NewHost according to nodetype
 func NewHost(nodetype string, listenAddrs []ma.Multiaddr, privateKey string) p2pcore.Host {
-	globalData.log.Infof("Private key:%x", []byte(privateKey))
 	prvKey, err := DecodeHexToPrvKey([]byte(privateKey)) //Hex Decoded binaryString
 	if err != nil {
 		globalData.log.Error(err.Error())
@@ -90,6 +90,7 @@ func NewHost(nodetype string, listenAddrs []ma.Multiaddr, privateKey string) p2p
 		panic(err)
 	}
 	if "client" == nodetype {
+		globalData.log.Infof("create a client host ID:%v", newHost.ID())
 		return newHost
 	}
 	// For Servant Node
@@ -101,6 +102,10 @@ func NewHost(nodetype string, listenAddrs []ma.Multiaddr, privateKey string) p2p
 	)
 	if err != nil {
 		panic(err)
+	}
+	globalData.log.Infof("create a servant host ID:%v", newHost.ID())
+	for _, a := range newHost.Addrs() {
+		globalData.log.Info(fmt.Sprintf("Host Address: %s/%v/%s\n", a, nodeProtocol, newHost.ID()))
 	}
 	return newHost
 }
