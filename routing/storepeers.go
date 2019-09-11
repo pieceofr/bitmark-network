@@ -6,6 +6,7 @@
 package routing
 
 import (
+	"bitmark-network/util"
 	"io/ioutil"
 
 	proto "github.com/golang/protobuf/proto"
@@ -16,15 +17,19 @@ func NewPeerItem(peer *peerEntry) *PeerItem {
 	if peer == nil {
 		return nil
 	}
+	var pbAddrs [][]byte
+	for _, listner := range peer.listeners {
+		pbAddrs = append(pbAddrs, listner.Bytes())
+	}
 	return &PeerItem{
 		PeerID:    peer.peerID,
-		Listeners: peer.listeners,
+		Listeners: &Addrs{Address: pbAddrs},
 		Timestamp: uint64(peer.timestamp.Unix()),
 	}
 }
 
-// backupPeers will backup all peers into a peer file
-func backupPeers(peerFile string) error {
+// storePeers will backup all peers into a peer file
+func storePeers(peerFile string) error {
 	if globalData.peerTree.Count() <= 2 {
 		globalData.log.Info("no need to backup. peer nodes are less than two")
 		return nil
@@ -66,7 +71,10 @@ func restorePeers(peerFile string) (PeerList, error) {
 	}
 	proto.Unmarshal(readin, &peers)
 	for _, peer := range peers.Peers {
-		addPeer(peer.PeerID, peer.Listeners, peer.Timestamp)
+		maAddrs := util.GetMultiAddrsFromBytes(peer.Listeners.Address)
+		if maAddrs != nil {
+			addPeer(peer.PeerID, maAddrs, peer.Timestamp)
+		}
 	}
 	return peers, nil
 }

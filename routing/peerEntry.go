@@ -15,27 +15,32 @@ import (
 
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/bitmarkd/mode"
-	"github.com/bitmark-inc/bitmarkd/util"
 	"github.com/bitmark-inc/bitmarkd/zmqutil"
+	ma "github.com/multiformats/go-multiaddr"
+	//"github.com/bitmark-inc/bitmarkd/zmqutil"
 )
 
 //type pubkey []byte
 type peerIDkey []byte
+
 type peerEntry struct {
-	peerID    []byte
-	listeners []byte
+	peerID    []byte // TODO: Check if this ok.  peerID is from peer.ID.Marshal() ,use  peer.IDFromBytes(peerID) to get ID object
+	listeners []ma.Multiaddr
 	timestamp time.Time // last seen time
 }
 
 // string - conversion fro fmt package
-func (p peerEntry) String() string {
-	v4, v6 := util.PackedConnection(p.listeners).Unpack46()
-	return fmt.Sprintf("%x @ %q %q - %s", p.peerID, v4, v6, p.timestamp.Format(timeFormat))
+func (p peerEntry) String() []string {
+	allAddress := []string{}
+	for _, listener := range p.listeners {
+		allAddress = append(allAddress, listener.String())
+	}
+	return allAddress
 }
 
-// SetPeer - called by the peering initialisation to set up this
+// SetSelf - called by the peering initialisation to set up this
 // node's announcement data
-func SetPeer(peerID []byte, listeners []byte) error {
+func setSelf(peerID []byte, listeners []ma.Multiaddr) error {
 	globalData.Lock()
 	defer globalData.Unlock()
 
@@ -63,7 +68,7 @@ func isPeerExpiredFromTime(timestamp time.Time) bool {
 // returns:
 //   true  if this was a new/updated entry
 //   false if the update was within the limits (to prevent continuous relaying)
-func AddPeer(peerID []byte, listeners []byte, timestamp uint64) bool {
+func AddPeer(peerID []byte, listeners []ma.Multiaddr, timestamp uint64) bool {
 	globalData.Lock()
 	rc := addPeer(peerID, listeners, timestamp)
 	globalData.Unlock()
@@ -71,7 +76,7 @@ func AddPeer(peerID []byte, listeners []byte, timestamp uint64) bool {
 }
 
 // internal add a peer announcement, hold lock before calling
-func addPeer(peerID []byte, listeners []byte, timestamp uint64) bool {
+func addPeer(peerID []byte, listeners []ma.Multiaddr, timestamp uint64) bool {
 	ts := resetFutureTimestampToNow(timestamp)
 	if isPeerExpiredFromTime(ts) {
 		return false
@@ -82,10 +87,9 @@ func addPeer(peerID []byte, listeners []byte, timestamp uint64) bool {
 		listeners: listeners,
 		timestamp: ts,
 	}
-
+	// TODO: Take care of peer update and peer replace base on protocol of multiaddress
 	if node, _ := globalData.peerTree.Search(peerIDkey(peerID)); nil != node {
 		peer := node.Value().(*peerEntry)
-
 		if ts.Sub(peer.timestamp) < announceRebroadcast {
 			return false
 		}
@@ -119,7 +123,7 @@ func resetFutureTimestampToNow(timestamp uint64) time.Time {
 }
 
 // GetNext - fetch the data for the next node in the ring for a given public key
-func GetNext(publicKey []byte) ([]byte, []byte, time.Time, error) {
+func GetNext(publicKey []byte) ([]byte, []ma.Multiaddr, time.Time, error) {
 	globalData.Lock()
 	defer globalData.Unlock()
 
@@ -138,7 +142,7 @@ func GetNext(publicKey []byte) ([]byte, []byte, time.Time, error) {
 }
 
 // GetRandom - fetch the data for a random node in the ring not matching a givpubkeyen public key
-func GetRandom(peerID []byte) ([]byte, []byte, time.Time, error) {
+func GetRandom(peerID []byte) ([]byte, []ma.Multiaddr, time.Time, error) {
 	globalData.Lock()
 	defer globalData.Unlock()
 

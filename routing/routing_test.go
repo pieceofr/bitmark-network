@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"bitmark-network/util"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -39,7 +40,7 @@ func TestStorePeers(t *testing.T) {
 	// domain from bind9
 	err := Initialise("nodes.rachael.bitmark", peerfile)
 	assert.NoError(t, err, "routing initialized error")
-	backupPeers(peerfile)
+	storePeers(peerfile)
 	assert.NoError(t, err, "routing backupPeers error")
 }
 func TestReadPeers(t *testing.T) {
@@ -51,6 +52,7 @@ func TestReadPeers(t *testing.T) {
 	assert.NoError(t, err, "TestReadPeers:readFile Error")
 	proto.Unmarshal(readin, &peers)
 	for _, peer := range peers.Peers {
-		fmt.Printf("peerID:%s, listener:%s timestamp:%d\n", string(peer.PeerID), string(peer.Listeners), peer.Timestamp)
+		addrList := util.ByteAddrsToString(peer.Listeners.Address)
+		fmt.Printf("peerID:%s, listener:%v timestamp:%d\n", string(peer.PeerID), addrList, peer.Timestamp)
 	}
 }

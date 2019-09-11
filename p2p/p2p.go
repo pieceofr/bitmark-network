@@ -8,6 +8,8 @@ import (
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/logger"
 	proto "github.com/golang/protobuf/proto"
+	peer "github.com/libp2p/go-libp2p-peer"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
 // global data
@@ -38,7 +40,7 @@ type Configuration struct {
 	Listen             []string           `gluamapper:"listen" json:"listen"`
 	Announce           []string           `gluamapper:"announce" json:"announce"`
 	PrivateKey         string             `gluamapper:"private_key" json:"private_key"`
-	PublicKey          string             `gluamapper:"public_key" json:"public_key"`
+	PublicKey          string             `gluamapper:"public_key" json:"public_key"` //TODO : REMOVE
 	Connect            []StaticConnection `gluamapper:"connect" json:"connect,omitempty"`
 }
 
@@ -50,7 +52,7 @@ func Initialise(configuration *Configuration) error {
 	if globalData.initialised {
 		return fault.ErrAlreadyInitialised
 	}
-	globalData.log = logger.New("network")
+	globalData.log = logger.New("p2p")
 	globalData.log.Info("starting…")
 	// Create A p2p Node
 	globalData.Setup(configuration)
@@ -89,6 +91,23 @@ loop:
 					break
 				}
 				log.Infof("<<--- multicasting PEER : %v\n", string(messageOut.Parameters[0]))
+			default:
+				if "N1" == item.Command || "N3" == item.Command || "X1" == item.Command || "X2" == item.Command ||
+					"X3" == item.Command || "X4" == item.Command || "X5" == item.Command || "X6" == item.Command ||
+					"X7" == item.Command || "P1" == item.Command || "P2" == item.Command {
+					// save to node peer and connect ; 				messagebus.Bus.P2P.Send(names[i], peer.peerID, peer.listeners)
+					pbListensers := Addrs{}
+					proto.Unmarshal(item.Parameters[1], &pbListensers)
+					for _, listener := range pbListensers.Address {
+						if maListener, err := ma.NewMultiaddrBytes(listener); nil == err {
+							//	n.log.Infof("command:%s request add peerid:%s", item.Command, string(item.Parameters[0]))
+							n.addPeer(peer.ID(string(item.Parameters[0])), maListener)
+						} else {
+							log.Errorf("Announce Message Error:%v", err)
+						}
+					}
+					go n.ConnectPeers()
+				}
 			}
 		case <-delay:
 			delay = time.After(nodeInterval)

@@ -35,8 +35,8 @@ func PublicKey(prvKey crypto.PrivKey) (crypto.PubKey, error) {
 	return publicKey, nil
 }
 
-// EncodePrvKey  from hex encoded string to private key
-func EncodePrvKey(prvKey crypto.PrivKey) ([]byte, error) {
+// EncodePrvKeyToHex  from hex encoded string to private key
+func EncodePrvKeyToHex(prvKey crypto.PrivKey) ([]byte, error) {
 	marshalKey, err := crypto.MarshalPrivateKey(prvKey)
 	if err != nil {
 		return nil, err
@@ -46,8 +46,8 @@ func EncodePrvKey(prvKey crypto.PrivKey) ([]byte, error) {
 	return hexEncodeKey, nil
 }
 
-//DecodePrvKey from hex encode to private key
-func DecodePrvKey(prvKey []byte) (crypto.PrivKey, error) {
+//DecodeHexToPrvKey from hex encode to private key
+func DecodeHexToPrvKey(prvKey []byte) (crypto.PrivKey, error) {
 	hexDecodeKey := make([]byte, hex.DecodedLen(len(prvKey)))
 	_, err := hex.Decode(hexDecodeKey, prvKey)
 	if err != nil {

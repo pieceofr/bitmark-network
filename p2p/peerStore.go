@@ -1,23 +1,25 @@
 package p2p
 
 import (
-	"github.com/libp2p/go-libp2p-core/peer"
+	"fmt"
+
+	peer "github.com/libp2p/go-libp2p-peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
 // addPeer to PeerStore
-func (n *Node) addPeer(peerInfo *peer.AddrInfo) {
-	for _, addr := range peerInfo.Addrs {
-		n.Host.Peerstore().AddAddr(peerInfo.ID, addr, peerstore.ConnectedAddrTTL)
-	}
-}
+func (n *Node) addPeer(id peer.ID, peer ma.Multiaddr) {
+	n.Lock()
+	n.Host.Peerstore().AddAddr(id, peer, peerstore.ConnectedAddrTTL)
+	n.Unlock()
 
-// RemovePeer to PeerStore
-func (n *Node) RemovePeer(peerInfo *peer.AddrInfo) {
-	for _, peerID := range n.Host.Peerstore().Peers() {
-		if peerID == peerInfo.ID {
-			//n.Host.Peerstore().UpdateAddrs(peerInfo.ID, 0*time.Second)
+	for index, id := range n.Host.Peerstore().PeersWithAddrs() {
+		infoAddrs := n.Host.Peerstore().Addrs(id)
+		addrsString := ""
+		for _, addr := range infoAddrs {
+			addrsString = fmt.Sprintf("%s-%s", addrsString, addr)
 		}
+		n.log.Infof("addPeer[%d]: ID:%v\nAddrs:%s", index, id, addrsString)
 	}
-
 }

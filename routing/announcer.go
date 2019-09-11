@@ -6,19 +6,31 @@
 package routing
 
 import (
+	"bitmark-network/util"
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"time"
 
-	"github.com/bitmark-inc/bitmarkd/messagebus"
+	"bitmark-network/messagebus"
+
 	"github.com/bitmark-inc/logger"
+	proto "github.com/golang/protobuf/proto"
 )
 
+/*
 const (
 	announceInitial     = 2 * time.Minute      // startup delay before first send
 	announceRebroadcast = 7 * time.Minute      // to prevent too frequent rebroadcasts
 	announceInterval    = 11 * time.Minute     // regular polling time
 	announceExpiry      = 5 * announceInterval // if no responses received within this time, delete the entry
+)
+*/
+const (
+	announceInitial     = 1 * time.Minute      // startup delay before first send
+	announceRebroadcast = 2 * time.Minute      // to prevent too frequent rebroadcasts
+	announceInterval    = 4 * time.Minute      // regular polling time
+	announceExpiry      = 3 * announceInterval // if no responses received within this time, delete the entry
 )
 
 type announcer struct {
@@ -34,13 +46,30 @@ func (ann *announcer) initialise() error {
 
 	return nil
 }
+func printListener(listener []byte) string {
+	maAddrs := Addrs{}
+	err := proto.Unmarshal(listener, &maAddrs)
+	if err != nil {
+		return ""
+	}
+	printListeners := ""
+	for idx, straddr := range util.ByteAddrsToString(maAddrs.Address) {
+		if 0 == idx {
+			printListeners = straddr
+		} else {
+			printListeners = fmt.Sprintf("%s-%s", printListeners, straddr)
+		}
+	}
+
+	return printListeners
+}
 
 // wait for incoming requests, process them and reply
 func (ann *announcer) Run(args interface{}, shutdown <-chan struct{}) {
 
 	log := ann.log
 
-	log.Info("starting…")
+	log.Info("starting… routing routine")
 
 	queue := messagebus.Bus.Announce.Chan()
 
@@ -52,21 +81,32 @@ loop:
 		case <-shutdown:
 			break loop
 		case item := <-queue:
-			log.Infof("received control: %s  parameters: %x", item.Command, item.Parameters)
 			switch item.Command {
 			case "reconnect":
 				determineConnections(log)
+				log.Infof("-><- reconnect")
 			case "updatetime":
 				setPeerTimestamp(item.Parameters[0], time.Now())
+				log.Infof("-><- updatetime id:%s", string(item.Parameters[0]))
 			case "addpeer":
 				//TODO: Make sure the timestamp is from external message or  local timestamp
 				timestamp := binary.BigEndian.Uint64(item.Parameters[2])
-				addPeer(item.Parameters[0], item.Parameters[1], timestamp)
-				log.Infof("received and add to router of peer: %x  listener: %x  timestamp: %d", item.Parameters[0], item.Parameters[1], timestamp)
+				var listeners Addrs
+				proto.Unmarshal(item.Parameters[1], &listeners)
+				addrs := util.GetMultiAddrsFromBytes(listeners.Address)
+				addPeer(item.Parameters[0], addrs, timestamp)
+				log.Infof("-><- add peer : %x  listener: %x  timestamp: %d", item.Parameters[0], printListener(item.Parameters[1]), timestamp)
+			case "self":
+				var lsners Addrs
+				proto.Unmarshal(item.Parameters[1], &lsners)
+				addrs := util.GetMultiAddrsFromBytes(lsners.Address)
+				setSelf(item.Parameters[0], addrs)
+				log.Infof("-><-  add self announce data: %x  listener: %s", item.Parameters[0], printListener(item.Parameters[1]))
 			default:
 			}
-		case <-delay:
+		case <-delay: // Periodically Announce Self
 			delay = time.After(announceInterval)
+			log.Info("Announce Interval Timeup")
 			ann.process()
 		}
 	}
@@ -96,7 +136,10 @@ func (ann *announcer) process() {
 	*/
 	if globalData.peerSet {
 		log.Debugf("send peer: %x", globalData.peerID)
-		messagebus.Bus.Broadcast.Send("peer", globalData.peerID, globalData.listeners, timestamp)
+		byteMessage, err := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(globalData.listeners)})
+		if nil == err {
+			messagebus.Bus.P2P.Send("peer", globalData.peerID, byteMessage, timestamp)
+		}
 	}
 	// TODO: Need to Add RPC
 	//expireRPC()
@@ -172,9 +215,11 @@ deduplicate:
 		if nil != node {
 			peer := node.Value().(*peerEntry)
 			if nil != peer {
-				log.Infof("%s: peer: %s", names[i], peer)
-				//TODO: Change Listener in P2P
-				messagebus.Bus.Connector.Send(names[i], peer.peerID, peer.listeners)
+				pbAddr := util.GetBytesFromMultiaddr(peer.listeners)
+				byteMsg, err := proto.Marshal(&Addrs{Address: pbAddr})
+				if nil == err {
+					messagebus.Bus.P2P.Send(names[i], peer.peerID, byteMsg)
+				}
 			}
 		}
 	}
@@ -199,7 +244,8 @@ scan_nodes:
 		if peer.timestamp.Add(announceExpiry).Before(now) {
 			globalData.peerTree.Delete(key)
 			globalData.treeChanged = true
-			messagebus.Bus.Connector.Send("@D", peer.peerID, peer.listeners) //@D means: @->Internal Command, D->delete
+			// TODO: Send to P2P to Expire
+			//messagebus.Bus.Connector.Send("@D", peer.peerID, peer.listeners) //@D means: @->Internal Command, D->delete
 			log.Infof("Peer Expired! public key: %x timestamp: %s is removed", peer.peerID, peer.timestamp.Format(timeFormat))
 		}
 	}

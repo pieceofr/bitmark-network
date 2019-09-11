@@ -6,19 +6,20 @@
 package routing
 
 import (
+	"fmt"
 	"net"
 	"strings"
 	"time"
 
-	"github.com/miekg/dns"
-
 	"github.com/bitmark-inc/bitmarkd/fault"
-	"github.com/bitmark-inc/bitmarkd/util"
 	"github.com/bitmark-inc/logger"
+	"github.com/miekg/dns"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
 const (
 	timeInterval = 1 * time.Hour // time interval for re-fetching nodes domain
+	nodeProtocol = "p2p"
 )
 
 type nodesLookup struct {
@@ -159,26 +160,26 @@ func lookupNodesDomain(domain string, log *logger.L) error {
 			log.Infof("result[%d]: IPv4: %q  IPv6: %q  rpc: %d  connect: %d", i, tag.ipv4, tag.ipv6, tag.rpcPort, tag.connectPort)
 			log.Infof("result[%d]: peer ID: %x", i, tag.peerID)
 			log.Infof("result[%d]: rpc fingerprint: %x", i, tag.certificateFingerprint)
-
-			listeners := []byte{}
-
-			if nil != tag.ipv4 {
-				c1 := util.ConnectionFromIPandPort(tag.ipv4, tag.connectPort)
-				listeners = append(listeners, c1.Pack()...)
-			}
-			if nil != tag.ipv6 {
-				c2 := util.ConnectionFromIPandPort(tag.ipv6, tag.connectPort)
-				listeners = append(listeners, c2.Pack()...)
-			}
-
 			if nil == tag.ipv4 && nil == tag.ipv6 {
 				log.Debugf("result[%d]: ignoring invalid record", i)
-			} else {
-				log.Infof("result[%d]: adding: %x", i, listeners)
-
-				// internal add, as lock is already held
-				addPeer([]byte(tag.peerID), listeners, uint64(time.Now().Unix()))
+				break
 			}
+			var listeners []ma.Multiaddr
+			if nil != tag.ipv4 {
+				ipv4ma, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%v/%s/%s", tag.ipv4, tag.connectPort, nodeProtocol, tag.peerID))
+				if nil == err {
+					listeners = append(listeners, ipv4ma)
+				}
+			}
+			if nil != tag.ipv6 {
+				ipv6ma, err := ma.NewMultiaddr(fmt.Sprintf("/ip6/%s/tcp/%v/%s/%s", tag.ipv6, tag.connectPort, nodeProtocol, tag.peerID))
+				if nil == err {
+					listeners = append(listeners, ipv6ma)
+				}
+			}
+
+			log.Infof("result[%d]: adding: %x", i, listeners)
+			addPeer([]byte(tag.peerID), listeners, uint64(time.Now().Unix()))
 		}
 	}
 

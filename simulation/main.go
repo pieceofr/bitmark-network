@@ -3,10 +3,12 @@ package main
 import (
 	"bitmark-network/p2p"
 	"bitmark-network/routing"
+	"flag"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/bitmark-inc/bitmarkd/configuration"
 	"github.com/bitmark-inc/logger"
@@ -25,6 +27,9 @@ type GlobalMockConfiguration struct {
 func main() {
 	var globalConf GlobalMockConfiguration
 	path := filepath.Join(os.Getenv("PWD"), "p2p.conf")
+	flag.StringVar(&path, "conf", "", "Specify configuration file")
+	flag.Parse()
+	fmt.Println("Config File=", path)
 	err := configuration.ParseConfigurationFile(path, &globalConf)
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -44,6 +49,9 @@ func main() {
 		panic(fmt.Sprintf("peer initialise error: %s", err))
 	}
 	defer p2p.Finalise()
+	for {
+		time.Sleep(10 * time.Second)
+	}
 }
 
 func getPeerFile(chain string) string {

@@ -1,12 +1,15 @@
 package p2p
 
 import (
+	"bitmark-network/messagebus"
+	"bitmark-network/util"
 	"context"
 	"sync"
 	"time"
 
 	"github.com/bitmark-inc/bitmarkd/background"
 	"github.com/bitmark-inc/logger"
+	"github.com/gogo/protobuf/proto"
 	libp2p "github.com/libp2p/go-libp2p"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -31,7 +34,7 @@ const (
 	nodeInitial       = 5 * time.Second // startup delay before first send
 	nodeInterval      = 1 * time.Minute // regular polling time
 	multicastingTopic = "/peer/announce/1.0.0"
-	nodeProtocol      = "/p2p"
+	nodeProtocol      = "p2p"
 )
 
 //Node  A p2p node
@@ -53,7 +56,9 @@ type Node struct {
 func (n *Node) Setup(configuration *Configuration) error {
 	globalData.NodeType = configuration.NodeType
 	globalData.PublicKey = configuration.PublicKey
-	globalData.Host = NewHost(configuration.NodeType, configuration.Listen, configuration.PrivateKey)
+	maAddrs := configListenToMultiAddrs(configuration.Listen)
+	globalData.Host = NewHost(configuration.NodeType, maAddrs, configuration.PrivateKey)
+	n.setAnnounce(configuration.Announce)
 	// Create a Multicasting function
 	ps, err := pubsub.NewGossipSub(context.Background(), n.Host)
 	if err != nil {
@@ -62,56 +67,72 @@ func (n *Node) Setup(configuration *Configuration) error {
 	n.MuticastStream = ps
 	sub, err := n.MuticastStream.Subscribe(multicastingTopic)
 	go n.SubHandler(context.Background(), sub)
+
 	globalData.initialised = true
 	return nil
 }
 
 // NewHost create a NewHost according to nodetype
-func NewHost(nodetype string, listenAddr []string, privateKey string) p2pcore.Host {
+func NewHost(nodetype string, listenAddrs []ma.Multiaddr, privateKey string) p2pcore.Host {
 	globalData.log.Infof("Private key:%x", []byte(privateKey))
-	prvKey, err := DecodePrvKey([]byte(privateKey)) //Hex Decoded binaryString
+	prvKey, err := DecodeHexToPrvKey([]byte(privateKey)) //Hex Decoded binaryString
 	if err != nil {
 		globalData.log.Error(err.Error())
 		panic(err)
 	}
 	// For Client Node
-	if "client" == nodetype {
-		newHost, err := libp2p.New(
-			context.Background(),
-			libp2p.Identity(prvKey),
-			libp2p.Security(tls.ID, tls.New),
-		)
-		if err != nil {
-			panic(err)
-		}
-		return newHost
-	}
-	// For Servant Node
-	var hostListenAddress ma.Multiaddr
-	hostListenAddress, err = NewListenMultiAddr(listenAddr)
 	newHost, err := libp2p.New(
 		context.Background(),
-		libp2p.ListenAddrs(hostListenAddress),
 		libp2p.Identity(prvKey),
 		libp2p.Security(tls.ID, tls.New),
 	)
 	if err != nil {
 		panic(err)
 	}
-	for _, addr := range newHost.Addrs() {
-		globalData.log.Infof("New Host Address: %s/%v/%s\n", addr, "p2p", newHost.ID())
+	if "client" == nodetype {
+		return newHost
+	}
+	// For Servant Node
+	newHost, err = libp2p.New(
+		context.Background(),
+		libp2p.Identity(prvKey),
+		libp2p.Security(tls.ID, tls.New),
+		libp2p.ListenAddrs(listenAddrs...),
+	)
+	if err != nil {
+		panic(err)
 	}
 	return newHost
 }
 
-// Connect  connect to other node , this is a blocking operation
-func (n *Node) Connect(peer peer.AddrInfo) error {
-	err := n.Host.Connect(context.Background(), peer)
+//setAnnounce: Set Announce address in Routing
+func (n *Node) setAnnounce(announceAddrs []string) {
+	maAddrs := configListenToMultiAddrs(announceAddrs)
+	byteMessage, err := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(maAddrs)})
+	param0, idErr := n.Host.ID().Marshal()
+
+	if nil == err && nil == idErr {
+		messagebus.Bus.Announce.Send("self", param0, byteMessage)
+	}
+}
+
+// ConnectPeers connect to all peers in host peerstore
+func (n *Node) ConnectPeers() {
+	for _, peerID := range n.Host.Peerstore().Peers() {
+		peerInfo := n.Host.Peerstore().PeerInfo(peerID)
+		n.ConnectStream(&peerInfo)
+	}
+}
+
+// ConnectStream  connect to other node , this is a blocking operation
+func (n *Node) ConnectStream(peer *peer.AddrInfo) error {
+	n.Host.Peerstore().AddAddrs(peer.ID, peer.Addrs, peerstore.ConnectedAddrTTL)
+	s, err := n.Host.NewStream(context.Background(), peer.ID, nodeProtocol)
 	if err != nil {
 		return err
 	}
-	for _, addr := range peer.Addrs {
-		n.Host.Peerstore().AddAddr(peer.ID, addr, peerstore.ConnectedAddrTTL)
-	}
+	var handleStream peerStreamHandler
+	handleStream.Setup(peer.ID, n.log)
+	handleStream.Handler(s)
 	return nil
 }

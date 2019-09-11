@@ -7,6 +7,7 @@ import (
 	"github.com/bitmark-inc/bitmarkd/background"
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/logger"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
 type routerData struct {
@@ -16,7 +17,7 @@ type routerData struct {
 	// PeerEntry Info
 	// this node's packed annoucements
 	peerID    []byte
-	listeners []byte
+	listeners []ma.Multiaddr
 	// bootstrap
 	nodesLookup nodesLookup
 	// tree of nodes available
@@ -104,7 +105,7 @@ func Finalise() error {
 	globalData.background.Stop()
 
 	globalData.log.Info("start backing up peer data…")
-	if err := backupPeers(globalData.peerFile); err != nil {
+	if err := storePeers(globalData.peerFile); err != nil {
 		globalData.log.Errorf("fail to backup peer data: %s", err.Error())
 	}
 
