@@ -2,13 +2,17 @@ package p2p
 
 import (
 	"bitmark-network/messagebus"
+	"sync"
 	"time"
 
 	"github.com/bitmark-inc/bitmarkd/background"
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/logger"
 	proto "github.com/golang/protobuf/proto"
+	p2pcore "github.com/libp2p/go-libp2p-core"
+	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	peer "github.com/libp2p/go-libp2p-peer"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -17,9 +21,20 @@ var globalData Node
 
 // const
 const (
+	// domains
 	domainLocal   = "nodes.rachael.bitmark"
 	domainBitamrk = "nodes.test.bitmark.com"
 	domainTest    = "nodes.test.bitmark.com"
+	//  time interval
+	nodeInitial  = 5 * time.Second // startup delay before first send
+	nodeInterval = 1 * time.Minute // regular polling time
+)
+
+var (
+	// muticastingTopic
+	multicastingTopic = "/peer/announce/1.0.0"
+	// stream protocols
+	nodeProtocol = ma.ProtocolWithCode(ma.P_P2P).Name
 )
 
 // StaticConnection - hardwired connections
@@ -44,20 +59,43 @@ type Configuration struct {
 	Connect            []StaticConnection `gluamapper:"connect" json:"connect,omitempty"`
 }
 
+// NodeType to inidcate a node is a servant or client
+type NodeType int
+
+const (
+	// Servant acts as both server and client
+	Servant NodeType = iota
+	// Client acts as a client only
+	Client
+	// Server acts as a server only, not supported at first draft
+	Server
+)
+
+//Node  A p2p node
+type Node struct {
+	NodeType       string
+	Host           p2pcore.Host
+	sync.RWMutex             // to allow locking
+	log            *logger.L // logger
+	MuticastStream *pubsub.PubSub
+	PreferIPv6     bool
+	PrivateKey     crypto.PrivKey
+	// for background
+	background *background.T
+	// set once during initialise
+	initialised bool
+}
+
 // Initialise initialize p2p module
 func Initialise(configuration *Configuration) error {
 	globalData.Lock()
 	defer globalData.Unlock()
-	// no need to start if already started
 	if globalData.initialised {
 		return fault.ErrAlreadyInitialised
 	}
 	globalData.log = logger.New("p2p")
 	globalData.log.Info("starting…")
-	// Create A p2p Node
 	globalData.Setup(configuration)
-	// Node setup
-	// start background processes
 	globalData.log.Info("start background…")
 
 	processes := background.Processes{
@@ -117,7 +155,7 @@ loop:
 						}
 					}
 					n.printPeerStore()
-					go n.ConnectPeers()
+					go n.connectPeers()
 				}
 			}
 		case <-delay:
