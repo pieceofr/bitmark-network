@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"bitmark-network/messagebus"
+	"context"
 	"sync"
 	"time"
 
@@ -11,7 +12,9 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
+	peerlib "github.com/libp2p/go-libp2p-core/peer"
 	peer "github.com/libp2p/go-libp2p-peer"
+	protocol "github.com/libp2p/go-libp2p-protocol"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -75,6 +78,7 @@ const (
 type Node struct {
 	NodeType       string
 	Host           p2pcore.Host
+	Announce       []ma.Multiaddr
 	sync.RWMutex             // to allow locking
 	log            *logger.L // logger
 	MuticastStream *pubsub.PubSub
@@ -144,18 +148,40 @@ loop:
 					"X3" == item.Command || "X4" == item.Command || "X5" == item.Command || "X6" == item.Command ||
 					"X7" == item.Command || "P1" == item.Command || "P2" == item.Command {
 					// save to node peer and connect ; 				messagebus.Bus.P2P.Send(names[i], peer.peerID, peer.listeners)
-					pbListensers := Addrs{}
-					proto.Unmarshal(item.Parameters[1], &pbListensers)
-					for _, listener := range pbListensers.Address {
-						if maListener, err := ma.NewMultiaddrBytes(listener); nil == err {
-							//	n.log.Infof("command:%s request add peerid:%s", item.Command, string(item.Parameters[0]))
-							n.addPeer(peer.ID(string(item.Parameters[0])), maListener)
+					log.Infof("Command:%v", item.Command)
+					pbPeerAddrs := Addrs{}
+					proto.Unmarshal(item.Parameters[1], &pbPeerAddrs)
+					peerID, err := peer.IDFromBytes(item.Parameters[0])
+					if err != nil {
+						n.log.Errorf("Error Unmarshal peer ID:%x", item.Parameters[0])
+						goto loop
+					}
+					for _, peerAddr := range pbPeerAddrs.Address {
+						if maListener, err := ma.NewMultiaddrBytes(peerAddr); nil == err {
+							//n.log.Infof("command:%s request add peerid:%s", item.Command, string(item.Parameters[0]))
+							peerAddrs := []ma.Multiaddr{maListener}
+							if !n.isSameNode(peerAddrs) {
+								id, err := peerlib.IDFromBytes(item.Parameters[0])
+								if err != nil {
+									n.log.Warnf("ID From byte error:%v", err)
+								}
+								n.addPeer(id, maListener)
+								s, err := n.Host.NewStream(context.Background(), peerID, protocol.ID(nodeProtocol))
+								if err != nil {
+									n.log.Errorf("create stream error:%s", err)
+								} else {
+									var handleStream nodeStreamHandler
+									handleStream.setup(&n.Host, n.log)
+									handleStream.Handler(s)
+								}
+
+							}
 						} else {
 							log.Errorf("Announce Message Error:%v", err)
 						}
 					}
 					n.printPeerStore()
-					go n.connectPeers()
+					//	go n.connectPeers()
 				}
 			}
 		case <-delay:

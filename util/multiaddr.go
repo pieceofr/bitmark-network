@@ -1,6 +1,8 @@
 package util
 
 import (
+	"fmt"
+
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -35,4 +37,13 @@ func ByteAddrsToString(addrs [][]byte) []string {
 		}
 	}
 	return addrsStr
+}
+
+// PrintMaAddrs print out all ma with a new line seperater
+func PrintMaAddrs(addrs []ma.Multiaddr) string {
+	var stringAddr string
+	for _, addr := range addrs {
+		stringAddr = fmt.Sprintf("%s%s\n", stringAddr, addr.String())
+	}
+	return stringAddr
 }

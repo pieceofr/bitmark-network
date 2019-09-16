@@ -7,15 +7,28 @@ import (
 	"strings"
 
 	"github.com/bitmark-inc/bitmarkd/fault"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
-func configListenToMultiAddrs(Listen []string) []ma.Multiaddr {
+func announceAddr(announce []ma.Multiaddr, protocol string, id peer.ID) []ma.Multiaddr {
+	maAddrs := []ma.Multiaddr{}
+	p2pMa, err := ma.NewMultiaddr(fmt.Sprintf("/%s/%s", protocol, id.String()))
+	if err != nil {
+		return nil
+	}
+	for _, addr := range announce {
+		maAddrs = append(maAddrs, addr.Encapsulate(p2pMa))
+	}
+	return maAddrs
+}
+
+func ipPortAddrsToMaAddrs(addrs []string) []ma.Multiaddr {
 	maListener := []ma.Multiaddr{}
-	for _, listenAddr := range Listen {
-		v, ip, port, err := parseIPPort(listenAddr)
-		if err != nil {
+	for _, addr := range addrs {
+		v, ip, port, err := parseIPPort(addr)
+		if err == nil {
 			if "ipv4" == v {
 				listenAddrIPV4, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%v", ip, port))
 				if err == nil {
@@ -55,5 +68,5 @@ func parseIPPort(hostPort string) (v string, ip string, port uint16, err error) 
 	if numericPort < 1 || numericPort > 65535 {
 		return "", "", 0, fault.ErrInvalidPortNumber
 	}
-	return v, portStr, uint16(numericPort), nil
+	return v, IP.String(), uint16(numericPort), nil
 }

@@ -13,11 +13,16 @@ import (
 // addPeer to PeerStore
 func (n *Node) addPeer(id peer.ID, peer ma.Multiaddr) {
 	n.Lock()
+	n.log.Infof("add peerstore:%s", peer.String())
 	n.Host.Peerstore().AddAddr(id, peer, peerstore.ConnectedAddrTTL)
 	n.Unlock()
 }
 
 func (n *Node) printPeerStore() {
+	if len(n.Host.Peerstore().PeersWithAddrs()) == 0 {
+		n.log.Warn("no peers in peerstore")
+		return
+	}
 	for index, id := range n.Host.Peerstore().PeersWithAddrs() {
 		infoAddrs := n.Host.Peerstore().Addrs(id)
 		addrsString := ""

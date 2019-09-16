@@ -16,6 +16,7 @@ import (
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/bitmarkd/mode"
 	"github.com/bitmark-inc/bitmarkd/zmqutil"
+	peerlib "github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	//"github.com/bitmark-inc/bitmarkd/zmqutil"
 )
@@ -94,11 +95,15 @@ func addPeer(peerID []byte, listeners []ma.Multiaddr, timestamp uint64) bool {
 			return false
 		}
 	}
+	id, err := peerlib.IDFromBytes(peer.peerID)
+	if err != nil {
+		globalData.log.Infof("Peer Adderd Error :err %s", err)
+	}
 
 	// add or update the timestamp in the tree
 	recordAdded := globalData.peerTree.Insert(peerIDkey(peerID), peer)
 
-	globalData.log.Debugf("added: %t  nodes in the peer tree: %d", recordAdded, globalData.peerTree.Count())
+	globalData.log.Infof("Peer Added:  ID: %s,  sucessadd:%t  nodes in the peer tree: %d", id.String(), recordAdded, globalData.peerTree.Count())
 
 	// if adding this nodes data
 	if bytes.Equal(globalData.peerID, peerID) {
@@ -207,4 +212,14 @@ func setPeerTimestamp(publicKey []byte, timestamp time.Time) {
 
 	peer := node.Value().(*peerEntry)
 	peer.timestamp = timestamp
+}
+
+func showIDFromByte(id []byte) {
+	ID, err := peerlib.IDFromBytes(id)
+	if err != nil {
+		globalData.log.Infof("IDFromByte Error:%v", err)
+		return
+	}
+	globalData.log.Infof("id:%x\n%s", id, ID.String())
+
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/bitmark-inc/logger"
 	proto "github.com/golang/protobuf/proto"
+	peerlib "github.com/libp2p/go-libp2p-core/peer"
 )
 
 /*
@@ -40,13 +41,13 @@ type announcer struct {
 // initialise the announcer
 func (ann *announcer) initialise() error {
 
-	log := logger.New("routing")
+	log := logger.New("announcer")
 	ann.log = log
 	log.Info("initialising…")
 
 	return nil
 }
-func printListener(listener []byte) string {
+func printAnnounce(listener []byte) string {
 	maAddrs := Addrs{}
 	err := proto.Unmarshal(listener, &maAddrs)
 	if err != nil {
@@ -57,7 +58,7 @@ func printListener(listener []byte) string {
 		if 0 == idx {
 			printListeners = straddr
 		} else {
-			printListeners = fmt.Sprintf("%s-%s", printListeners, straddr)
+			printListeners = fmt.Sprintf("%s%s\n", printListeners, straddr)
 		}
 	}
 
@@ -95,13 +96,21 @@ loop:
 				proto.Unmarshal(item.Parameters[1], &listeners)
 				addrs := util.GetMultiAddrsFromBytes(listeners.Address)
 				addPeer(item.Parameters[0], addrs, timestamp)
-				log.Infof("-><- add peer : %x  listener: %x  timestamp: %d", item.Parameters[0], printListener(item.Parameters[1]), timestamp)
+				id, err := peerlib.IDFromBytes(item.Parameters[0])
+				if err != nil {
+					log.Warnf("IDFromByte Error:", err)
+					continue loop
+				}
+				log.Infof("-><- add peer : %x  listener: %x  timestamp: %d", id, printAnnounce(item.Parameters[1]), timestamp)
 			case "self":
 				var lsners Addrs
 				proto.Unmarshal(item.Parameters[1], &lsners)
 				addrs := util.GetMultiAddrsFromBytes(lsners.Address)
-				setSelf(item.Parameters[0], addrs)
-				log.Infof("-><-  add self announce data: %x  listener: %s", item.Parameters[0], printListener(item.Parameters[1]))
+				id, err := peerlib.IDFromBytes(item.Parameters[0])
+				if nil == err {
+					log.Infof("-><-  add self announce data: %v  listener: %s", id, printAnnounce(item.Parameters[1]))
+					setSelf(item.Parameters[0], addrs)
+				}
 			default:
 			}
 		case <-delay: // Periodically Announce Self
@@ -160,7 +169,11 @@ func determineConnections(log *logger.L) {
 	// locate this node in the tree
 	_, index := globalData.peerTree.Search(globalData.thisNode.Key())
 	count := globalData.peerTree.Count()
-	log.Infof("N0: index: %d  tree: %d  public key: %x", index, count, globalData.peerID)
+	id, err := peerlib.IDFromBytes(globalData.peerID)
+	if err != nil {
+		log.Warnf("determineConnections:Parse Node ID Error:", err)
+	}
+	log.Infof("This Node index: %d  tree: %d  peerID: %v", index, count, id.String())
 
 	// various increment values
 	e := count / 8
@@ -215,10 +228,17 @@ deduplicate:
 		if nil != node {
 			peer := node.Value().(*peerEntry)
 			if nil != peer {
+				id, err := peerlib.IDFromBytes(peer.peerID)
+				if err != nil {
+					log.Infof("announcer: conver byte to ID faile, ID:%v", id)
+				}
+				log.Infof("announcer.go determine connection Peer ID in byte %v", id)
+
 				pbAddr := util.GetBytesFromMultiaddr(peer.listeners)
 				byteMsg, err := proto.Marshal(&Addrs{Address: pbAddr})
 				if nil == err {
 					messagebus.Bus.P2P.Send(names[i], peer.peerID, byteMsg)
+					showIDFromByte(peer.peerID)
 				}
 			}
 		}

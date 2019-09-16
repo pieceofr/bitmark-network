@@ -21,14 +21,16 @@ type nodeStreamHandler struct {
 	Shutdown   chan<- struct{}
 }
 
-func (h *nodeStreamHandler) setup(host *libp2pcore.Host) {
+func (h *nodeStreamHandler) setup(host *libp2pcore.Host, l *logger.L) {
 	h.Host = host
-	log.Infof("New Stream Handler")
+	h.log = l
+	h.log.Infof("New Stream Handler")
 }
-func (h *nodeStreamHandler) setupRemote(host *libp2pcore.Host, id peer.ID) {
+func (h *nodeStreamHandler) setupRemote(host *libp2pcore.Host, id peer.ID, l *logger.L) {
 	h.Host = host
 	h.RemoteID = id
-	log.Infof("New Stream Handler")
+	h.log = l
+	h.log.Infof("New Stream Handler")
 }
 
 // Handler  for streamHandler
@@ -39,7 +41,7 @@ func (h *nodeStreamHandler) Handler(s network.Stream) {
 	h.Shutdown = shutdown
 	go h.Reciever()
 	go h.Sender(shutdown)
-	log.Debugf("Start a new stream! ID:%s  direction:%d\n", h.RemoteID, s.Stat().Direction)
+	h.log.Debugf("Start a new stream! ID:%s  direction:%d\n", h.RemoteID, s.Stat().Direction)
 }
 
 //Reciever for NodeStreamHandler
@@ -57,11 +59,11 @@ func (h *nodeStreamHandler) Reciever() {
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		log.Infof("#Reader%d read: %v\n", h.RemoteID, str)
+		h.log.Infof("#Reader%d read: %v\n", h.RemoteID, str)
 	}
 }
 
 //Sender for NodeStreamHandler
 func (h *nodeStreamHandler) Sender(shutdown <-chan struct{}) {
-	log.Infof("---Handler Sender Start- RemoteID:%s--", h.RemoteID)
+	h.log.Infof("---Handler Sender Start- RemoteID:%s--", h.RemoteID)
 }

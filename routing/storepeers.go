@@ -68,6 +68,7 @@ func restorePeers(peerFile string) (PeerList, error) {
 	readin, err := ioutil.ReadFile(peerFile)
 	if err != nil {
 		globalData.log.Errorf("Failed to read peers from a file:%v", err)
+		return PeerList{}, err
 	}
 	proto.Unmarshal(readin, &peers)
 	for _, peer := range peers.Peers {

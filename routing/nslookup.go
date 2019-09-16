@@ -13,6 +13,7 @@ import (
 
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/logger"
+	peerlib "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/miekg/dns"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -179,7 +180,13 @@ func lookupNodesDomain(domain string, log *logger.L) error {
 			}
 
 			log.Infof("result[%d]: adding: %x", i, listeners)
-			addPeer([]byte(tag.peerID), listeners, uint64(time.Now().Unix()))
+			id, err := peerlib.IDFromString(tag.peerID)
+			if err != nil {
+				byteID, err := id.Marshal()
+				if nil == err {
+					addPeer(byteID, listeners, uint64(time.Now().Unix()))
+				}
+			}
 		}
 	}
 
