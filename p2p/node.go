@@ -20,7 +20,7 @@ import (
 func (n *Node) Setup(configuration *Configuration) error {
 	globalData.NodeType = configuration.NodeType
 	globalData.PreferIPv6 = configuration.PreferIPv6
-	maAddrs := configListenToMultiAddrs(configuration.Listen)
+	maAddrs := IPPortToMultiAddr(configuration.Listen)
 	prvKey, err := DecodeHexToPrvKey([]byte(configuration.PrivateKey)) //Hex Decoded binaryString
 	if err != nil {
 		globalData.log.Error(err.Error())
@@ -62,8 +62,9 @@ func NewHost(nodetype string, listenAddrs []ma.Multiaddr, prvKey crypto.PrivKey)
 
 //setAnnounce: Set Announce address in Routing
 func (n *Node) setAnnounce(announceAddrs []string) {
-	maAddrs := configListenToMultiAddrs(announceAddrs)
-	byteMessage, err := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(maAddrs)})
+	maAddrs := IPPortToMultiAddr(announceAddrs)
+	fullAddr := announceMuxAddr(maAddrs, nodeProtocol, n.Host.ID())
+	byteMessage, err := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(fullAddr)})
 	param0, idErr := n.Host.ID().Marshal()
 
 	if nil == err && nil == idErr {
@@ -74,7 +75,7 @@ func (n *Node) setAnnounce(announceAddrs []string) {
 // listen  connect to other node , this is a blocking operation
 func (n *Node) listen() error {
 	handler := nodeStreamHandler{}
-	handler.setup(&n.Host)
+	handler.setup(&n.Host, n.log)
 	n.Host.SetStreamHandler(protocol.ID(nodeProtocol), handler.Handler)
 	<-make(chan struct{})
 	return nil
