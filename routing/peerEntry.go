@@ -6,7 +6,7 @@
 package routing
 
 import (
-	"bytes"
+	"bitmark-network/util"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
@@ -22,10 +22,11 @@ import (
 )
 
 //type pubkey []byte
-type peerIDkey []byte
+//type peerIDkey []byte
+type peerIDkey peerlib.ID
 
 type peerEntry struct {
-	peerID    []byte // TODO: Check if this ok.  peerID is from peer.ID.Marshal() ,use  peer.IDFromBytes(peerID) to get ID object
+	peerID    peerlib.ID
 	listeners []ma.Multiaddr
 	timestamp time.Time // last seen time
 }
@@ -41,7 +42,7 @@ func (p peerEntry) String() []string {
 
 // SetSelf - called by the peering initialisation to set up this
 // node's announcement data
-func setSelf(peerID []byte, listeners []ma.Multiaddr) error {
+func setSelf(peerID peerlib.ID, listeners []ma.Multiaddr) error {
 	globalData.Lock()
 	defer globalData.Unlock()
 
@@ -69,7 +70,7 @@ func isPeerExpiredFromTime(timestamp time.Time) bool {
 // returns:
 //   true  if this was a new/updated entry
 //   false if the update was within the limits (to prevent continuous relaying)
-func AddPeer(peerID []byte, listeners []ma.Multiaddr, timestamp uint64) bool {
+func AddPeer(peerID peerlib.ID, listeners []ma.Multiaddr, timestamp uint64) bool {
 	globalData.Lock()
 	rc := addPeer(peerID, listeners, timestamp)
 	globalData.Unlock()
@@ -77,7 +78,7 @@ func AddPeer(peerID []byte, listeners []ma.Multiaddr, timestamp uint64) bool {
 }
 
 // internal add a peer announcement, hold lock before calling
-func addPeer(peerID []byte, listeners []ma.Multiaddr, timestamp uint64) bool {
+func addPeer(peerID peerlib.ID, listeners []ma.Multiaddr, timestamp uint64) bool {
 	ts := resetFutureTimestampToNow(timestamp)
 	if isPeerExpiredFromTime(ts) {
 		return false
@@ -95,18 +96,14 @@ func addPeer(peerID []byte, listeners []ma.Multiaddr, timestamp uint64) bool {
 			return false
 		}
 	}
-	id, err := peerlib.IDFromBytes(peer.peerID)
-	if err != nil {
-		globalData.log.Infof("Peer Adderd Error :err %s", err)
-	}
 
 	// add or update the timestamp in the tree
 	recordAdded := globalData.peerTree.Insert(peerIDkey(peerID), peer)
 
-	globalData.log.Infof("Peer Added:  ID: %s,  sucessadd:%t  nodes in the peer tree: %d", id.String(), recordAdded, globalData.peerTree.Count())
+	globalData.log.Infof("Peer Added:  ID: %s,  sucessadd:%t  nodes in the peer tree: %d", peerID.String(), recordAdded, globalData.peerTree.Count())
 
 	// if adding this nodes data
-	if bytes.Equal(globalData.peerID, peerID) {
+	if util.IDEqual(globalData.peerID, peerID) {
 		return false
 	}
 
@@ -128,7 +125,7 @@ func resetFutureTimestampToNow(timestamp uint64) time.Time {
 }
 
 // GetNext - fetch the data for the next node in the ring for a given public key
-func GetNext(publicKey []byte) ([]byte, []ma.Multiaddr, time.Time, error) {
+func GetNext(publicKey []byte) (peerlib.ID, []ma.Multiaddr, time.Time, error) {
 	globalData.Lock()
 	defer globalData.Unlock()
 
@@ -140,14 +137,14 @@ func GetNext(publicKey []byte) ([]byte, []ma.Multiaddr, time.Time, error) {
 		node = globalData.peerTree.First()
 	}
 	if nil == node {
-		return nil, nil, time.Now(), fault.ErrInvalidPublicKey
+		return peerlib.ID(""), nil, time.Now(), fault.ErrInvalidPublicKey
 	}
 	peer := node.Value().(*peerEntry)
 	return peer.peerID, peer.listeners, peer.timestamp, nil
 }
 
 // GetRandom - fetch the data for a random node in the ring not matching a givpubkeyen public key
-func GetRandom(peerID []byte) ([]byte, []ma.Multiaddr, time.Time, error) {
+func GetRandom(peerID peerlib.ID) (peerlib.ID, []ma.Multiaddr, time.Time, error) {
 	globalData.Lock()
 	defer globalData.Unlock()
 
@@ -169,12 +166,12 @@ retry_loop:
 			break retry_loop
 		}
 		peer := node.Value().(*peerEntry)
-		if bytes.Equal(peer.peerID, globalData.peerID) || bytes.Equal(peer.peerID, peerID) {
+		if util.IDEqual(peer.peerID, globalData.peerID) || util.IDEqual(peer.peerID, peerID) {
 			continue retry_loop
 		}
 		return peer.peerID, peer.listeners, peer.timestamp, nil
 	}
-	return nil, nil, time.Now(), fault.ErrInvalidPublicKey
+	return peerlib.ID(""), nil, time.Now(), fault.ErrInvalidPublicKey
 }
 
 // SendRegistration - send a peer registration request to a client channel
@@ -190,7 +187,7 @@ func SendRegistration(client zmqutil.ClientIntf, fn string) error {
 
 // Compare - public key comparison for AVL interface
 func (p peerIDkey) Compare(q interface{}) int {
-	return bytes.Compare(p, q.(peerIDkey))
+	return util.IDCompare(peerlib.ID(p), peerlib.ID(q.(peerIDkey)))
 }
 
 // String - public key string convert for AVL interface

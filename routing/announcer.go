@@ -7,9 +7,7 @@ package routing
 
 import (
 	"bitmark-network/util"
-	"bytes"
 	"encoding/binary"
-	"fmt"
 	"time"
 
 	"bitmark-network/messagebus"
@@ -47,23 +45,6 @@ func (ann *announcer) initialise() error {
 
 	return nil
 }
-func printAnnounce(listener []byte) string {
-	maAddrs := Addrs{}
-	err := proto.Unmarshal(listener, &maAddrs)
-	if err != nil {
-		return ""
-	}
-	printListeners := ""
-	for idx, straddr := range util.ByteAddrsToString(maAddrs.Address) {
-		if 0 == idx {
-			printListeners = straddr
-		} else {
-			printListeners = fmt.Sprintf("%s%s\n", printListeners, straddr)
-		}
-	}
-
-	return printListeners
-}
 
 // wait for incoming requests, process them and reply
 func (ann *announcer) Run(args interface{}, shutdown <-chan struct{}) {
@@ -91,26 +72,36 @@ loop:
 				log.Infof("-><- updatetime id:%s", string(item.Parameters[0]))
 			case "addpeer":
 				//TODO: Make sure the timestamp is from external message or  local timestamp
+				id, err := peerlib.IDFromBytes(item.Parameters[0])
+				if err != nil {
+					log.Warn(err.Error())
+					continue loop
+				}
 				timestamp := binary.BigEndian.Uint64(item.Parameters[2])
 				var listeners Addrs
 				proto.Unmarshal(item.Parameters[1], &listeners)
 				addrs := util.GetMultiAddrsFromBytes(listeners.Address)
-				addPeer(item.Parameters[0], addrs, timestamp)
-				id, err := peerlib.IDFromBytes(item.Parameters[0])
-				if err != nil {
-					log.Warnf("IDFromByte Error:", err)
+				if len(addrs) == 0 {
+					log.Warn("No valid listener address")
 					continue loop
 				}
-				log.Infof("-><- add peer : %x  listener: %x  timestamp: %d", id, printAnnounce(item.Parameters[1]), timestamp)
+				addPeer(id, addrs, timestamp)
+				log.Infof("-><- add peer : %x  listener: %x  timestamp: %d", id, printBinaryAddrs(item.Parameters[1]), timestamp)
 			case "self":
+				id, err := peerlib.IDFromBytes(item.Parameters[0])
+				if err != nil {
+					log.Warn(err.Error())
+					continue loop
+				}
 				var lsners Addrs
 				proto.Unmarshal(item.Parameters[1], &lsners)
 				addrs := util.GetMultiAddrsFromBytes(lsners.Address)
-				id, err := peerlib.IDFromBytes(item.Parameters[0])
-				if nil == err {
-					log.Infof("-><-  add self announce data: %v  listener: %s", id, printAnnounce(item.Parameters[1]))
-					setSelf(item.Parameters[0], addrs)
+				if len(addrs) == 0 {
+					log.Warn("No valid listener address")
+					continue loop
 				}
+				log.Infof("-><-  add self announce data: %v  listener: %s", id, printBinaryAddrs(item.Parameters[1]))
+				setSelf(id, addrs)
 			default:
 			}
 		case <-delay: // Periodically Announce Self
@@ -145,9 +136,10 @@ func (ann *announcer) process() {
 	*/
 	if globalData.peerSet {
 		log.Debugf("send peer: %x", globalData.peerID)
-		byteMessage, err := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(globalData.listeners)})
-		if nil == err {
-			messagebus.Bus.P2P.Send("peer", globalData.peerID, byteMessage, timestamp)
+		addrsBinary, errAddr := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(globalData.listeners)})
+		idBinary, errID := globalData.peerID.MarshalBinary()
+		if nil == errAddr && nil == errID {
+			messagebus.Bus.P2P.Send("peer", idBinary, addrsBinary, timestamp)
 		}
 	}
 	// TODO: Need to Add RPC
@@ -169,11 +161,7 @@ func determineConnections(log *logger.L) {
 	// locate this node in the tree
 	_, index := globalData.peerTree.Search(globalData.thisNode.Key())
 	count := globalData.peerTree.Count()
-	id, err := peerlib.IDFromBytes(globalData.peerID)
-	if err != nil {
-		log.Warnf("determineConnections:Parse Node ID Error:", err)
-	}
-	log.Infof("This Node index: %d  tree: %d  peerID: %v", index, count, id.String())
+	log.Infof("This Node index: %d  tree: %d  peerID: %v", index, count, globalData.peerID)
 
 	// various increment values
 	e := count / 8
@@ -228,17 +216,13 @@ deduplicate:
 		if nil != node {
 			peer := node.Value().(*peerEntry)
 			if nil != peer {
-				id, err := peerlib.IDFromBytes(peer.peerID)
-				if err != nil {
-					log.Infof("announcer: conver byte to ID faile, ID:%v", id)
-				}
-				log.Infof("announcer.go determine connection Peer ID in byte %v", id)
+				idBinary, errID := globalData.peerID.MarshalBinary()
 
 				pbAddr := util.GetBytesFromMultiaddr(peer.listeners)
-				byteMsg, err := proto.Marshal(&Addrs{Address: pbAddr})
-				if nil == err {
-					messagebus.Bus.P2P.Send(names[i], peer.peerID, byteMsg)
-					showIDFromByte(peer.peerID)
+				pbAddrBinary, errMarshal := proto.Marshal(&Addrs{Address: pbAddr})
+				if nil == errID && nil == errMarshal {
+					messagebus.Bus.P2P.Send(names[i], idBinary, pbAddrBinary)
+					log.Infof("-><-  %v : %s  listener: %x  timestamp: %d", names[i], globalData.peerID.String(), printBinaryAddrs(pbAddrBinary))
 				}
 			}
 		}
@@ -257,10 +241,10 @@ scan_nodes:
 		nextNode = node.Next()
 
 		// skip this node's entry
-		if bytes.Equal(globalData.peerID, peer.peerID) {
+		if globalData.peerID.String() == peer.peerID.String() {
 			continue scan_nodes
 		}
-		log.Debugf("public key: %x timestamp: %s", peer.peerID, peer.timestamp.Format(timeFormat))
+		log.Debugf("PeerID: %v timestamp: %s", peer.peerID, peer.timestamp.Format(timeFormat))
 		if peer.timestamp.Add(announceExpiry).Before(now) {
 			globalData.peerTree.Delete(key)
 			globalData.treeChanged = true

@@ -2,7 +2,9 @@ package util
 
 import (
 	"fmt"
+	"strings"
 
+	peerlib "github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -16,6 +18,19 @@ func GetMultiAddrsFromBytes(listners [][]byte) []ma.Multiaddr {
 		}
 	}
 	return maAddrs
+}
+
+// IDCompare The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
+func IDCompare(ida, idb peerlib.ID) int {
+	return strings.Compare(ida.String(), idb.String())
+}
+
+// IDEqual if 2 peer id are equal
+func IDEqual(ida, idb peerlib.ID) bool {
+	if ida.String() == idb.String() {
+		return true
+	}
+	return false
 }
 
 // GetBytesFromMultiaddr take []Multiaddr format listeners and convert them into   [][]byte

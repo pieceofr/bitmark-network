@@ -149,7 +149,7 @@ func lookupNodesDomain(domain string, log *logger.L) error {
 		log.Errorf("lookup TXT record error: %s", err)
 		return err
 	}
-
+loop:
 	// process DNS entries
 	for i, t := range texts {
 		t = strings.TrimSpace(t)
@@ -178,15 +178,13 @@ func lookupNodesDomain(domain string, log *logger.L) error {
 					listeners = append(listeners, ipv6ma)
 				}
 			}
-
-			log.Infof("result[%d]: adding: %x", i, listeners)
 			id, err := peerlib.IDFromString(tag.peerID)
 			if err != nil {
-				byteID, err := id.Marshal()
-				if nil == err {
-					addPeer(byteID, listeners, uint64(time.Now().Unix()))
-				}
+				continue loop
 			}
+			log.Infof("result[%d]: adding id:%s, listener: %s", i, tag.peerID, printMaAddrs(listeners))
+			addPeer(id, listeners, uint64(time.Now().Unix()))
+
 		}
 	}
 

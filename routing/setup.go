@@ -7,6 +7,7 @@ import (
 	"github.com/bitmark-inc/bitmarkd/background"
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/logger"
+	peerlib "github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -16,7 +17,7 @@ type routerData struct {
 	log *logger.L
 	// PeerEntry Info
 	// this node's packed annoucements
-	peerID    []byte
+	peerID    peerlib.ID
 	listeners []ma.Multiaddr
 	// bootstrap
 	nodesLookup nodesLookup

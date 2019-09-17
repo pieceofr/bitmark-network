@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 
 	proto "github.com/golang/protobuf/proto"
+	peerlib "github.com/libp2p/go-libp2p-core/peer"
 )
 
 // NewPeerItem is to create a PeerItem from peerEntry
@@ -21,8 +22,12 @@ func NewPeerItem(peer *peerEntry) *PeerItem {
 	for _, listner := range peer.listeners {
 		pbAddrs = append(pbAddrs, listner.Bytes())
 	}
+	peerIDBinary, err := peer.peerID.Marshal()
+	if err != nil {
+		return nil
+	}
 	return &PeerItem{
-		PeerID:    peer.peerID,
+		PeerID:    peerIDBinary,
 		Listeners: &Addrs{Address: pbAddrs},
 		Timestamp: uint64(peer.timestamp.Unix()),
 	}
@@ -71,11 +76,14 @@ func restorePeers(peerFile string) (PeerList, error) {
 		return PeerList{}, err
 	}
 	proto.Unmarshal(readin, &peers)
+loop:
 	for _, peer := range peers.Peers {
+		id, err := peerlib.IDFromBytes(peer.PeerID)
 		maAddrs := util.GetMultiAddrsFromBytes(peer.Listeners.Address)
-		if maAddrs != nil {
-			addPeer(peer.PeerID, maAddrs, peer.Timestamp)
+		if err != nil || nil != maAddrs {
+			continue loop
 		}
+		addPeer(id, maAddrs, peer.Timestamp)
 	}
 	return peers, nil
 }
