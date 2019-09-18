@@ -84,6 +84,7 @@ loop:
 			continue loop
 		}
 		addPeer(id, maAddrs, peer.Timestamp)
+		globalData.peerTree.Print(false)
 	}
 	return peers, nil
 }

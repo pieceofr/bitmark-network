@@ -86,7 +86,8 @@ loop:
 					continue loop
 				}
 				addPeer(id, addrs, timestamp)
-				log.Infof("-><- add peer : %x  listener: %x  timestamp: %d", id, printBinaryAddrs(item.Parameters[1]), timestamp)
+				log.Infof("-><- addpeer : %s  listener: %s  timestamp: %d", id.String(), printBinaryAddrs(item.Parameters[1]), timestamp)
+				globalData.peerTree.Print(false)
 			case "self":
 				id, err := peerlib.IDFromBytes(item.Parameters[0])
 				if err != nil {
@@ -100,7 +101,7 @@ loop:
 					log.Warn("No valid listener address")
 					continue loop
 				}
-				log.Infof("-><-  add self announce data: %v  listener: %s", id, printBinaryAddrs(item.Parameters[1]))
+				log.Infof("-><-  self announce data: %v  listener: %s", id, printBinaryAddrs(item.Parameters[1]))
 				setSelf(id, addrs)
 			default:
 			}
@@ -161,13 +162,13 @@ func determineConnections(log *logger.L) {
 	// locate this node in the tree
 	_, index := globalData.peerTree.Search(globalData.thisNode.Key())
 	count := globalData.peerTree.Count()
-	log.Infof("This Node index: %d  tree: %d  peerID: %v", index, count, globalData.peerID)
+	log.Infof("determine thisNode index: %d  tree: %d  peerID: %v peerID ", index, count, globalData.peerID)
 
 	// various increment values
 	e := count / 8
 	q := count / 4
 	h := count / 2
-
+	log.Infof("e:%d, q:%d, h:%d", e, q, h)
 	jump := 3      // to deal with N3/P3 and too few nodes
 	if count < 4 { // if insufficient
 		jump = 1 // just duplicate N1/P1
@@ -216,15 +217,16 @@ deduplicate:
 		if nil != node {
 			peer := node.Value().(*peerEntry)
 			if nil != peer {
-				idBinary, errID := globalData.peerID.MarshalBinary()
-
+				idBinary, errID := peer.peerID.Marshal()
 				pbAddr := util.GetBytesFromMultiaddr(peer.listeners)
 				pbAddrBinary, errMarshal := proto.Marshal(&Addrs{Address: pbAddr})
 				if nil == errID && nil == errMarshal {
 					messagebus.Bus.P2P.Send(names[i], idBinary, pbAddrBinary)
-					log.Infof("-><-  %v : %s  listener: %x  timestamp: %d", names[i], globalData.peerID.String(), printBinaryAddrs(pbAddrBinary))
+					log.Infof("determine %v : %s  address: %x ", names[i], peer.peerID.String(), printBinaryAddrs(pbAddrBinary))
 				}
 			}
+		} else {
+			log.Infof("Get Nil node")
 		}
 	}
 }

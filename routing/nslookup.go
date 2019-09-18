@@ -159,7 +159,7 @@ loop:
 		} else {
 			log.Infof("process TXT[%d]: %q", i, t)
 			log.Infof("result[%d]: IPv4: %q  IPv6: %q  rpc: %d  connect: %d", i, tag.ipv4, tag.ipv6, tag.rpcPort, tag.connectPort)
-			log.Infof("result[%d]: peer ID: %x", i, tag.peerID)
+			log.Infof("result[%d]: peer ID: %s", i, tag.peerID)
 			log.Infof("result[%d]: rpc fingerprint: %x", i, tag.certificateFingerprint)
 			if nil == tag.ipv4 && nil == tag.ipv6 {
 				log.Debugf("result[%d]: ignoring invalid record", i)
@@ -170,20 +170,27 @@ loop:
 				ipv4ma, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%v/%s/%s", tag.ipv4, tag.connectPort, nodeProtocol, tag.peerID))
 				if nil == err {
 					listeners = append(listeners, ipv4ma)
+				} else {
+					log.Warnf("form ipv6 ma error :%v", err)
 				}
 			}
 			if nil != tag.ipv6 {
 				ipv6ma, err := ma.NewMultiaddr(fmt.Sprintf("/ip6/%s/tcp/%v/%s/%s", tag.ipv6, tag.connectPort, nodeProtocol, tag.peerID))
 				if nil == err {
 					listeners = append(listeners, ipv6ma)
+				} else {
+					log.Warnf("form ipv6 ma error :%v", err)
 				}
 			}
-			id, err := peerlib.IDFromString(tag.peerID)
+
+			id, err := peerlib.IDB58Decode(tag.peerID)
 			if err != nil {
+				log.Warnf("ID DecodeBase58 Error :%v ID::%v", err, tag.peerID)
 				continue loop
 			}
-			log.Infof("result[%d]: adding id:%s, listener: %s", i, tag.peerID, printMaAddrs(listeners))
+			log.Infof("result[%d]: adding id:%s", i, tag.peerID)
 			addPeer(id, listeners, uint64(time.Now().Unix()))
+			globalData.peerTree.Print(false)
 
 		}
 	}

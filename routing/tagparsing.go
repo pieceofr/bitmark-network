@@ -107,7 +107,6 @@ words:
 			t.rpcPort, err = getPort(parameter)
 			countR += 1
 		case 'i':
-			globalData.log.Infof("t.peerID=%s", parameter)
 			t.peerID = parameter
 			countI += 1
 		case 'f':

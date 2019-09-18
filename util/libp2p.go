@@ -1,24 +1,14 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	peerlib "github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/common/log"
 )
-
-// GetMultiAddrsFromBytes take  [][]byte listeners and convert them into []Multiaddr format
-func GetMultiAddrsFromBytes(listners [][]byte) []ma.Multiaddr {
-	var maAddrs []ma.Multiaddr
-	for _, addr := range listners {
-		maAddr, err := ma.NewMultiaddrBytes(addr)
-		if nil == err {
-			maAddrs = append(maAddrs, maAddr)
-		}
-	}
-	return maAddrs
-}
 
 // IDCompare The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
 func IDCompare(ida, idb peerlib.ID) int {
@@ -31,6 +21,32 @@ func IDEqual(ida, idb peerlib.ID) bool {
 		return true
 	}
 	return false
+}
+
+// MaAddrToAddrInfo Convert  multiAddr to peer.AddrInfo
+func MaAddrToAddrInfo(ma ma.Multiaddr) (*peerlib.AddrInfo, error) {
+	info, err := peerlib.AddrInfoFromP2pAddr(ma)
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
+	if nil == info {
+		return nil, errors.New("AddrInfo is nil")
+	}
+	//p.PeersRemote.AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
+	return info, nil
+}
+
+// GetMultiAddrsFromBytes take  [][]byte listeners and convert them into []Multiaddr format
+func GetMultiAddrsFromBytes(listners [][]byte) []ma.Multiaddr {
+	var maAddrs []ma.Multiaddr
+	for _, addr := range listners {
+		maAddr, err := ma.NewMultiaddrBytes(addr)
+		if nil == err {
+			maAddrs = append(maAddrs, maAddr)
+		}
+	}
+	return maAddrs
 }
 
 // GetBytesFromMultiaddr take []Multiaddr format listeners and convert them into   [][]byte

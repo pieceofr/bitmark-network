@@ -7,7 +7,6 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/peer"
 	net "github.com/libp2p/go-libp2p-net"
-	protocol "github.com/libp2p/go-libp2p-protocol"
 	"github.com/multiformats/go-multiaddr"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -15,7 +14,7 @@ import (
 func (n *Node) dialPeer(ctx context.Context, remoteListner *peer.AddrInfo) (net.Stream, error) {
 	cctx, cancel := context.WithTimeout(ctx, time.Second*60)
 	defer cancel()
-	return n.Host.NewStream(cctx, remoteListner.ID, protocol.ID(nodeProtocol))
+	return n.Host.NewStream(cctx, remoteListner.ID, "/chat/1.0.0")
 }
 
 // ConnectPeers connect to all peers in host peerstore

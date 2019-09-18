@@ -8,9 +8,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	libp2p "github.com/libp2p/go-libp2p"
-	p2pcore "github.com/libp2p/go-libp2p-core"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
-	protocol "github.com/libp2p/go-libp2p-protocol"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	tls "github.com/libp2p/go-libp2p-tls"
 	ma "github.com/multiformats/go-multiaddr"
@@ -27,10 +25,11 @@ func (n *Node) Setup(configuration *Configuration) error {
 		panic(err)
 	}
 	n.PrivateKey = prvKey
-	n.Host = NewHost(configuration.NodeType, maAddrs, n.PrivateKey)
+	n.NewHost(configuration.NodeType, maAddrs, n.PrivateKey)
 	n.setAnnounce(configuration.Announce)
 	// Start to listen to p2p stream
-	go n.listen()
+	//go n.listen()
+	go n.listenTemp(configuration.Announce)
 	// Create a Multicasting route
 	ps, err := pubsub.NewGossipSub(context.Background(), n.Host)
 	if err != nil {
@@ -44,7 +43,7 @@ func (n *Node) Setup(configuration *Configuration) error {
 }
 
 // NewHost create a NewHost according to nodetype
-func NewHost(nodetype string, listenAddrs []ma.Multiaddr, prvKey crypto.PrivKey) p2pcore.Host {
+func (n *Node) NewHost(nodetype string, listenAddrs []ma.Multiaddr, prvKey crypto.PrivKey) error {
 	options := []libp2p.Option{libp2p.Identity(prvKey), libp2p.Security(tls.ID, tls.New)}
 	if "client" != nodetype {
 		options = append(options, libp2p.ListenAddrs(listenAddrs...))
@@ -53,11 +52,12 @@ func NewHost(nodetype string, listenAddrs []ma.Multiaddr, prvKey crypto.PrivKey)
 	if err != nil {
 		panic(err)
 	}
+	n.Host = newHost
 	globalData.log.Infof("New Host is created ID:%v", newHost.ID())
 	for _, a := range newHost.Addrs() {
 		globalData.log.Info(fmt.Sprintf("Host Address: %s/%v/%s\n", a, nodeProtocol, newHost.ID()))
 	}
-	return newHost
+	return nil
 }
 
 //setAnnounce: Set Announce address in Routing
@@ -76,7 +76,20 @@ func (n *Node) setAnnounce(announceAddrs []string) {
 func (n *Node) listen() error {
 	handler := nodeStreamHandler{}
 	handler.setup(&n.Host, n.log)
-	n.Host.SetStreamHandler(protocol.ID(nodeProtocol), handler.Handler)
+	n.Host.SetStreamHandler("/chat/1.0.0", handler.Handler)
 	<-make(chan struct{})
 	return nil
+}
+
+func (n *Node) listenTemp(announceAddrs []string) {
+	maAddrs := IPPortToMultiAddr(announceAddrs)
+	var shandler SimpleStream
+
+	shandler.ID = fmt.Sprintf("%s", n.Host.ID())
+	n.log.Infof("A servant is listen to %s", maAddrs[0].String())
+
+	n.Host.SetStreamHandler("/chat/1.0.0", shandler.handleStream)
+
+	// Hang forever
+	<-make(chan struct{})
 }

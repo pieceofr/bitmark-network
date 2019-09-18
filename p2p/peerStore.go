@@ -11,10 +11,17 @@ import (
 
 //TODO: This function add address into the peer with the same id. Needs to take care of  IP changes
 // addPeer to PeerStore
-func (n *Node) addPeer(id peer.ID, peer ma.Multiaddr) {
+func (n *Node) addPeerAddrs(id peer.ID, peerAddrs []ma.Multiaddr) {
 	n.Lock()
-	n.log.Infof("add peerstore:%s", peer.String())
-	n.Host.Peerstore().AddAddr(id, peer, peerstore.ConnectedAddrTTL)
+	n.log.Infof("add peerstore:%s", id.String())
+	n.Host.Peerstore().AddAddrs(id, peerAddrs, peerstore.ConnectedAddrTTL)
+	n.Unlock()
+}
+
+func (n *Node) addPeerAddr(id peer.ID, peerAddr ma.Multiaddr) {
+	n.Lock()
+	n.log.Infof("add peerstore:%s", id.String())
+	n.Host.Peerstore().AddAddr(id, peerAddr, peerstore.ConnectedAddrTTL)
 	n.Unlock()
 }
 
