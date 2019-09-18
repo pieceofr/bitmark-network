@@ -3,8 +3,6 @@ package p2p
 import (
 	"bitmark-network/messagebus"
 	"bitmark-network/util"
-	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -16,7 +14,6 @@ import (
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	peerlib "github.com/libp2p/go-libp2p-core/peer"
-	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -161,41 +158,14 @@ loop:
 					pbPeerAddrs := Addrs{}
 					proto.Unmarshal(item.Parameters[1], &pbPeerAddrs)
 					maAddrs := util.GetMultiAddrsFromBytes(pbPeerAddrs.Address)
-
 					info, err := peer.AddrInfoFromP2pAddr(maAddrs[0])
 					if err != nil {
 						log.Warn(err.Error())
 						continue loop
 					}
-					log.Infof("Connecting to Address %s", info.Addrs[0].String())
-					n.Host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
-
-					// Start a stream with the destination.
-					// Multiaddress of the destination peer is fetched from the peerstore using 'peerId'.
-					s, err := n.Host.NewStream(context.Background(), info.ID, "/chat/1.0.0")
-					if err != nil {
-						log.Warn(err.Error())
-						continue loop
-					}
-					// Create a thread to read and write data.
-					var shandler basicStream
-
-					shandler.ID = fmt.Sprintf("%s", n.Host.ID())
-					shandler.handleStream(s)
-					/*
-						s, err := n.Host.NewStream(context.Background(), peerID, "/chat/1.0.0")
-						if err != nil {
-							n.log.Errorf("connect to peerID:%s error:%s addrs:%s", peerID, err, util.PrintMaAddrs(maAddrs))
-						} else {
-
-								var handleStream nodeStreamHandler
-								handleStream.setup(&n.Host, n.log)
-								handleStream.Handler(s)
-					*/
+					n.addPeerAddrs(*info)
+					n.connectPeers()
 				}
-				n.printPeerStore()
-				//	go n.connectPeers()
-
 			}
 		case <-delay:
 			delay = time.After(nodeInterval)
