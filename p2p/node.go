@@ -28,8 +28,7 @@ func (n *Node) Setup(configuration *Configuration) error {
 	n.NewHost(configuration.NodeType, maAddrs, n.PrivateKey)
 	n.setAnnounce(configuration.Announce)
 	// Start to listen to p2p stream
-	//go n.listen()
-	go n.listenTemp(configuration.Announce)
+	go n.listen(configuration.Announce)
 	// Create a Multicasting route
 	ps, err := pubsub.NewGossipSub(context.Background(), n.Host)
 	if err != nil {
@@ -72,24 +71,12 @@ func (n *Node) setAnnounce(announceAddrs []string) {
 	}
 }
 
-// listen  connect to other node , this is a blocking operation
-func (n *Node) listen() error {
-	handler := nodeStreamHandler{}
-	handler.setup(&n.Host, n.log)
-	n.Host.SetStreamHandler("/chat/1.0.0", handler.Handler)
-	<-make(chan struct{})
-	return nil
-}
-
-func (n *Node) listenTemp(announceAddrs []string) {
+func (n *Node) listen(announceAddrs []string) {
 	maAddrs := IPPortToMultiAddr(announceAddrs)
-	var shandler SimpleStream
-
+	var shandler basicStream
 	shandler.ID = fmt.Sprintf("%s", n.Host.ID())
-	n.log.Infof("A servant is listen to %s", maAddrs[0].String())
-
+	n.log.Infof("A servant is listen to %s", util.PrintMaAddrs(maAddrs))
 	n.Host.SetStreamHandler("/chat/1.0.0", shandler.handleStream)
-
 	// Hang forever
 	<-make(chan struct{})
 }

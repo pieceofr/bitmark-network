@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	net "github.com/libp2p/go-libp2p-net"
 	"github.com/multiformats/go-multiaddr"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/common/log"
 )
 
 func (n *Node) dialPeer(ctx context.Context, remoteListner *peer.AddrInfo) (net.Stream, error) {
@@ -20,6 +22,7 @@ func (n *Node) dialPeer(ctx context.Context, remoteListner *peer.AddrInfo) (net.
 // ConnectPeers connect to all peers in host peerstore
 func (n *Node) connectPeers() {
 
+loop:
 	for idx, peerID := range n.Host.Peerstore().Peers() {
 		peerInfo := n.Host.Peerstore().PeerInfo(peerID)
 
@@ -27,19 +30,25 @@ func (n *Node) connectPeers() {
 			for _, addr := range peerInfo.Addrs {
 				n.log.Infof("connectPeers: Dial to peer[%d]:%s", idx, addr.String())
 			}
-			s, err := n.dialPeer(context.Background(), &peerInfo)
-			if err != nil {
-				n.log.Errorf("Connector:dialPeer Error:%v", err)
-			} else {
-				var handleStream nodeStreamHandler
-				handleStream.setupRemote(&n.Host, peerID, n.log)
-				handleStream.Handler(s)
-				n.log.Infof("Start a Stream with:%v", peerID)
-			}
+			n.directConnect(peerInfo)
 		} else {
 			n.log.Infof("The same node: %s", peerID)
+			continue loop
 		}
 	}
+}
+
+func (n *Node) directConnect(info peer.AddrInfo) {
+	// Start a stream with the destination.
+	// Multiaddress of the destination peer is fetched from the peerstore using 'peerId'.
+	s, err := n.Host.NewStream(context.Background(), info.ID, "/chat/1.0.0")
+	if err != nil {
+		log.Warn(err.Error())
+		return
+	}
+	// Create a thread to read and write data.
+	shandler := basicStream{ID: fmt.Sprintf("%s", n.Host.ID())}
+	shandler.handleStream(s)
 }
 
 // Check on IP and Port and also local addr with the same port

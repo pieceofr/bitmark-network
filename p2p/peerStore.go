@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	peer "github.com/libp2p/go-libp2p-peer"
-	peerstore "github.com/libp2p/go-libp2p-peerstore"
+	peer "github.com/libp2p/go-libp2p-core/peer"
+	peerstore "github.com/libp2p/go-libp2p-core/peerstore"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -13,8 +13,9 @@ import (
 // addPeer to PeerStore
 func (n *Node) addPeerAddrs(id peer.ID, peerAddrs []ma.Multiaddr) {
 	n.Lock()
-	n.log.Infof("add peerstore:%s", id.String())
 	n.Host.Peerstore().AddAddrs(id, peerAddrs, peerstore.ConnectedAddrTTL)
+	info := peer.AddrInfo{ID: id, Addrs: peerAddrs}
+	n.log.Infof("add peerstore:%s", info.String())
 	n.Unlock()
 }
 
