@@ -63,6 +63,7 @@ loop:
 		case <-shutdown:
 			break loop
 		case item := <-queue:
+			log.Infof("received control: %s  parameters: %x", item.Command, item.Parameters)
 			switch item.Command {
 			case "reconnect":
 				determineConnections(log)
@@ -105,9 +106,9 @@ loop:
 				setSelf(id, addrs)
 			default:
 			}
-		case <-delay: // Periodically Announce Self
+
+		case <-delay:
 			delay = time.After(announceInterval)
-			log.Info("Announce Interval Timeup")
 			ann.process()
 		}
 	}
@@ -128,13 +129,10 @@ func (ann *announcer) process() {
 	binary.BigEndian.PutUint64(timestamp, uint64(time.Now().Unix()))
 
 	// announce this nodes IP and ports to other peers
-	// TODO: Need to Add RPC
-	/*
-		if globalData.rpcsSet {
-			log.Debugf("send rpc: %x", globalData.fingerprint)
-			messagebus.Bus.Broadcast.Send("rpc", globalData.fingerprint[:], globalData.rpcs, timestamp)
-		}
-	*/
+	if globalData.rpcsSet {
+		log.Debugf("send rpc: %x", globalData.fingerprint)
+		messagebus.Bus.Broadcast.Send("rpc", globalData.fingerprint[:], globalData.rpcs, timestamp)
+	}
 	if globalData.peerSet {
 		log.Debugf("send peer: %x", globalData.peerID)
 		addrsBinary, errAddr := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(globalData.listeners)})
@@ -143,8 +141,8 @@ func (ann *announcer) process() {
 			messagebus.Bus.P2P.Send("peer", idBinary, addrsBinary, timestamp)
 		}
 	}
-	// TODO: Need to Add RPC
-	//expireRPC()
+
+	expireRPC()
 	expirePeer(log)
 
 	if globalData.treeChanged {
@@ -168,7 +166,7 @@ func determineConnections(log *logger.L) {
 	e := count / 8
 	q := count / 4
 	h := count / 2
-	log.Infof("e:%d, q:%d, h:%d", e, q, h)
+
 	jump := 3      // to deal with N3/P3 and too few nodes
 	if count < 4 { // if insufficient
 		jump = 1 // just duplicate N1/P1
@@ -225,8 +223,7 @@ deduplicate:
 					log.Infof("determine %v : %s  address: %x ", names[i], peer.peerID.String(), printBinaryAddrs(pbAddrBinary))
 				}
 			}
-		} else {
-			log.Infof("Get Nil node")
+	
 		}
 	}
 }
@@ -254,5 +251,6 @@ scan_nodes:
 			//messagebus.Bus.Connector.Send("@D", peer.peerID, peer.listeners) //@D means: @->Internal Command, D->delete
 			log.Infof("Peer Expired! public key: %x timestamp: %s is removed", peer.peerID, peer.timestamp.Format(timeFormat))
 		}
+
 	}
 }

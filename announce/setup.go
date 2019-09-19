@@ -3,7 +3,6 @@ package announce
 import (
 	"bitmark-network/avl"
 	"sync"
-
 	"github.com/bitmark-inc/bitmarkd/background"
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/logger"
@@ -11,24 +10,34 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 )
 
-type routerData struct {
+type announcerData struct {
 	sync.RWMutex // to allow locking
+
 	// logger
 	log *logger.L
-	// PeerEntry Info
 	// this node's packed annoucements
 	peerID    peerlib.ID
 	listeners []ma.Multiaddr
-	// bootstrap
-	nodesLookup nodesLookup
+	fingerprint fingerprintType
+	rpcs        []byte
+	peerSet     bool
+	rpcsSet     bool
+
 	// tree of nodes available
 	peerTree    *avl.Tree
 	thisNode    *avl.Node // this node's position in the tree
 	treeChanged bool      // tree was changed
-	peerSet     bool
 	peerFile    string
+
+	// database of all RPCs
+	rpcIndex map[fingerprintType]int // index to find rpc entry
+	rpcList  []*rpcEntry             // array of RPCs
+
 	// data for thread
 	ann announcer
+
+	nodesLookup nodesLookup
+
 	// for background
 	background *background.T
 	// set once during initialise
@@ -36,7 +45,7 @@ type routerData struct {
 }
 
 // global data
-var globalData routerData
+var globalData announcerData
 
 // format for timestamps
 const timeFormat = "2006-01-02 15:04:05"
@@ -60,6 +69,9 @@ func Initialise(nodesDomain, peerFile string) error {
 	globalData.peerTree = avl.New()
 	globalData.thisNode = nil
 	globalData.treeChanged = false
+
+	globalData.rpcIndex = make(map[fingerprintType]int, 1000)
+	globalData.rpcList = make([]*rpcEntry, 0, 1000)
 
 	globalData.peerSet = false
 	globalData.peerFile = peerFile
