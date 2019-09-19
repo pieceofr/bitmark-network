@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/miekg/dns"
-
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/logger"
 	peerlib "github.com/libp2p/go-libp2p-core/peer"

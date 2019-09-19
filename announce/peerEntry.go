@@ -21,8 +21,7 @@ import (
 	//"github.com/bitmark-inc/bitmarkd/zmqutil"
 )
 
-//type pubkey []byte
-//type peerIDkey []byte
+
 type peerIDkey peerlib.ID
 
 type peerEntry struct {
@@ -92,6 +91,7 @@ func addPeer(peerID peerlib.ID, listeners []ma.Multiaddr, timestamp uint64) bool
 	// TODO: Take care of peer update and peer replace base on protocol of multiaddress
 	if node, _ := globalData.peerTree.Search(peerIDkey(peerID)); nil != node {
 		peer := node.Value().(*peerEntry)
+
 		if ts.Sub(peer.timestamp) < announceRebroadcast {
 			return false
 		}

@@ -2,7 +2,10 @@ package announce
 
 import (
 	"bitmark-network/avl"
+	"bitmark-network/util"
 	"sync"
+	"time"
+
 	"github.com/bitmark-inc/bitmarkd/background"
 	"github.com/bitmark-inc/bitmarkd/fault"
 	"github.com/bitmark-inc/logger"
@@ -10,14 +13,22 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 )
 
+// RPC entries
+type rpcEntry struct {
+	address     util.PackedConnection // packed addresses
+	fingerprint fingerprintType       // SHA3-256(certificate)
+	timestamp   time.Time             // creation time
+	local       bool                  // true => never expires
+}
+
 type announcerData struct {
 	sync.RWMutex // to allow locking
 
 	// logger
 	log *logger.L
 	// this node's packed annoucements
-	peerID    peerlib.ID
-	listeners []ma.Multiaddr
+	peerID      peerlib.ID
+	listeners   []ma.Multiaddr
 	fingerprint fingerprintType
 	rpcs        []byte
 	peerSet     bool
@@ -49,6 +60,9 @@ var globalData announcerData
 
 // format for timestamps
 const timeFormat = "2006-01-02 15:04:05"
+
+// type for SHA3 fingerprints
+type fingerprintType [32]byte
 
 // Initialise - set up the announcement system
 // pass a fully qualified domain for root node list
