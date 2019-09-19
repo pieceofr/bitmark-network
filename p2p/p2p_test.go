@@ -1,7 +1,7 @@
 package p2p
 
 import (
-	"bitmark-network/routing"
+	"bitmark-network/announce"
 	"fmt"
 	"os"
 	"testing"
@@ -65,5 +65,5 @@ func TestNewP2P(t *testing.T) {
 	err := Initialise(mockConfiguration("servant", 12136))
 	assert.NoError(t, err, "P2P  initialized error")
 	time.Sleep(8 * time.Second)
-	defer routing.Finalise()
+	defer announce.Finalise()
 }

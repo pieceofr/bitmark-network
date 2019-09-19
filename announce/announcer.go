@@ -3,7 +3,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package routing
+package announce
 
 import (
 	"bitmark-network/util"
@@ -51,7 +51,7 @@ func (ann *announcer) Run(args interface{}, shutdown <-chan struct{}) {
 
 	log := ann.log
 
-	log.Info("starting… routing routine")
+	log.Info("starting… announce routine")
 
 	queue := messagebus.Bus.Announce.Chan()
 

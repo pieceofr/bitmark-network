@@ -1,4 +1,4 @@
-package routing
+package announce
 
 import (
 	"bitmark-network/util"
@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 	logLevel["DEFAULT"] = "info"
 	var logConfig = logger.Configuration{
 		Directory: curPath,
-		File:      "routing_test.log",
+		File:      "announce_test.log",
 		Size:      1048576,
 		Count:     20,
 		Console:   true,
@@ -39,9 +39,9 @@ func TestStorePeers(t *testing.T) {
 	peerfile := path.Join(curPath, "peers")
 	// domain from bind9
 	err := Initialise("nodes.rachael.bitmark", peerfile)
-	assert.NoError(t, err, "routing initialized error")
+	assert.NoError(t, err, "announce initialized error")
 	storePeers(peerfile)
-	assert.NoError(t, err, "routing backupPeers error")
+	assert.NoError(t, err, "announce backupPeers error")
 }
 func TestReadPeers(t *testing.T) {
 	fmt.Println("TestReadPeers")

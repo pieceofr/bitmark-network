@@ -60,7 +60,7 @@ func (n *Node) NewHost(nodetype string, listenAddrs []ma.Multiaddr, prvKey crypt
 	return nil
 }
 
-//setAnnounce: Set Announce address in Routing
+//setAnnounce: Set Announce address in announce
 func (n *Node) setAnnounce(announceAddrs []string) {
 	maAddrs := IPPortToMultiAddr(announceAddrs)
 	fullAddr := announceMuxAddr(maAddrs, nodeProtocol, n.Host.ID())

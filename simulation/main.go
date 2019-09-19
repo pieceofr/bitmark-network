@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bitmark-network/announce"
 	"bitmark-network/p2p"
-	"bitmark-network/routing"
 	"flag"
 	"fmt"
 	"os"
@@ -39,11 +39,11 @@ func main() {
 		panic(err)
 	}
 	defer logger.Finalise()
-	err = routing.Initialise(getDomainName(globalConf), getPeerFile(globalConf.Chain))
+	err = announce.Initialise(getDomainName(globalConf), getPeerFile(globalConf.Chain))
 	if nil != err {
 		panic(fmt.Sprintf("peer initialise error: %s", err))
 	}
-	defer routing.Finalise()
+	defer announce.Finalise()
 	err = p2p.Initialise(&globalConf.Peering)
 	if nil != err {
 		panic(fmt.Sprintf("peer initialise error: %s", err))

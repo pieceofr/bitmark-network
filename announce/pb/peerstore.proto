@@ -15,4 +15,4 @@ message PeerList {
     repeated bytes Address =1;
   }
 
-  // protoc --proto_path=$HOME/wks_go/src/bitmark-network/routing/pb/ --go_out=$HOME/wks_go/src/bitmark-network/routing/ peerstore.proto
+  // protoc --proto_path=$HOME/wks_go/src/bitmark-network/announce/pb/ --go_out=$HOME/wks_go/src/bitmark-network/announce/ peerstore.proto
