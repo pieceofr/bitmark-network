@@ -178,7 +178,7 @@ loop:
 						continue loop
 					}
 					// Create a thread to read and write data.
-					var shandler SimpleStream
+					var shandler basicStream
 
 					shandler.ID = fmt.Sprintf("%s", n.Host.ID())
 					shandler.handleStream(s)

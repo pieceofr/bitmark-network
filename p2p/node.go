@@ -83,7 +83,7 @@ func (n *Node) listen() error {
 
 func (n *Node) listenTemp(announceAddrs []string) {
 	maAddrs := IPPortToMultiAddr(announceAddrs)
-	var shandler SimpleStream
+	var shandler basicStream
 
 	shandler.ID = fmt.Sprintf("%s", n.Host.ID())
 	n.log.Infof("A servant is listen to %s", maAddrs[0].String())
