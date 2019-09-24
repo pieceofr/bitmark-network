@@ -27,6 +27,8 @@ func (n *Node) Setup(configuration *Configuration) error {
 	n.PrivateKey = prvKey
 	n.NewHost(configuration.NodeType, maAddrs, n.PrivateKey)
 	n.setAnnounce(configuration.Announce)
+	n.MetricsNetwork = NewMetricsNetwork(n.log)
+	go n.startMonitor(n.Host)
 	// Start to listen to p2p stream
 	go n.listen(configuration.Announce)
 	// Create a Multicasting route

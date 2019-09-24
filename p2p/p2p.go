@@ -84,6 +84,7 @@ type Node struct {
 	MuticastStream *pubsub.PubSub
 	PreferIPv6     bool
 	PrivateKey     crypto.PrivKey
+	MetricsNetwork
 	// for background
 	background *background.T
 	// set once during initialise

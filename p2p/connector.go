@@ -3,20 +3,12 @@ package p2p
 import (
 	"bitmark-network/util"
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
-	net "github.com/libp2p/go-libp2p-net"
 	"github.com/multiformats/go-multiaddr"
 )
-
-func (n *Node) dialPeer(ctx context.Context, remoteListner *peer.AddrInfo) (net.Stream, error) {
-	cctx, cancel := context.WithTimeout(ctx, time.Second*60)
-	defer cancel()
-	return n.Host.NewStream(cctx, remoteListner.ID, "/chat/1.0.0")
-}
 
 // ConnectPeers connect to all peers in host peerstore
 func (n *Node) connectPeers() {
@@ -39,17 +31,13 @@ func (n *Node) connectPeers() {
 }
 
 func (n *Node) directConnect(info peer.AddrInfo) {
-	// Start a stream with the destination.
-	// Multiaddress of the destination peer is fetched from the peerstore using 'peerId'.
-	s, err := n.Host.NewStream(context.Background(), info.ID, "/chat/1.0.0")
+	cctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	defer cancel()
+	err := n.Host.Connect(cctx, info)
 	if err != nil {
 		n.log.Warn(err.Error())
 		return
 	}
-	// Create a thread to read and write data.
-	var shandler basicStream
-	shandler.ID = fmt.Sprintf("%s", n.Host.ID())
-	shandler.handleStream(s)
 }
 
 // Check on IP and Port and also local addr with the same port
