@@ -8,7 +8,6 @@ import (
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	p2pnet "github.com/libp2p/go-libp2p-core/network"
 	multiaddr "github.com/multiformats/go-multiaddr"
-	"github.com/prometheus/common/log"
 )
 
 // MetricsNetwork contain P2P network metrics
@@ -24,6 +23,7 @@ func NewMetricsNetwork(l *logger.L) MetricsNetwork {
 }
 
 func (m *MetricsNetwork) startMonitor(host p2pcore.Host) {
+	log := m.log
 	host.Network().Notify(&p2pnet.NotifyBundle{
 		ListenF: func(net p2pnet.Network, addr multiaddr.Multiaddr) {
 			log.Debugf("@@Host: %v is listen at %v\n", addr.String(), time.Now())

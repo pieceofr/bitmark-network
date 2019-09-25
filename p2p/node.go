@@ -19,12 +19,14 @@ func (n *Node) Setup(configuration *Configuration) error {
 	globalData.NodeType = configuration.NodeType
 	globalData.PreferIPv6 = configuration.PreferIPv6
 	maAddrs := IPPortToMultiAddr(configuration.Listen)
+	n.Listener = maAddrs
 	prvKey, err := DecodeHexToPrvKey([]byte(configuration.PrivateKey)) //Hex Decoded binaryString
 	if err != nil {
 		globalData.log.Error(err.Error())
 		panic(err)
 	}
 	n.PrivateKey = prvKey
+
 	n.NewHost(configuration.NodeType, maAddrs, n.PrivateKey)
 	n.setAnnounce(configuration.Announce)
 	n.MetricsNetwork = NewMetricsNetwork(n.log)
@@ -64,10 +66,10 @@ func (n *Node) NewHost(nodetype string, listenAddrs []ma.Multiaddr, prvKey crypt
 //setAnnounce: Set Announce address in announce
 func (n *Node) setAnnounce(announceAddrs []string) {
 	maAddrs := IPPortToMultiAddr(announceAddrs)
-	fullAddr := announceMuxAddr(maAddrs, nodeProtocol, n.Host.ID())
-	byteMessage, err := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(fullAddr)})
+	fullAddrs := announceMuxAddr(maAddrs, nodeProtocol, n.Host.ID())
+	n.Announce = fullAddrs
+	byteMessage, err := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(fullAddrs)})
 	param0, idErr := n.Host.ID().Marshal()
-
 	if nil == err && nil == idErr {
 		messagebus.Bus.Announce.Send("self", param0, byteMessage)
 	}
@@ -75,10 +77,9 @@ func (n *Node) setAnnounce(announceAddrs []string) {
 
 func (n *Node) listen(announceAddrs []string) {
 	maAddrs := IPPortToMultiAddr(announceAddrs)
-	var shandler basicStream
-	shandler.ID = fmt.Sprintf("%s", n.Host.ID())
+	shandler := NewListenHandler(n.Host.ID().Pretty(), n.log)
 	n.log.Infof("A servant is listen to %s", util.PrintMaAddrs(maAddrs))
-	n.Host.SetStreamHandler("/chat/1.0.0", shandler.handleStream)
+	n.Host.SetStreamHandler("p2pstream", shandler.handleStream)
 	// Hang forever
 	<-make(chan struct{})
 }

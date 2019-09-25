@@ -12,6 +12,7 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	peerlib "github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -79,12 +80,14 @@ type Node struct {
 	NodeType       string
 	Host           p2pcore.Host
 	Announce       []ma.Multiaddr
+	Listener       []ma.Multiaddr
 	sync.RWMutex             // to allow locking
 	log            *logger.L // logger
 	MuticastStream *pubsub.PubSub
 	PreferIPv6     bool
 	PrivateKey     crypto.PrivKey
 	MetricsNetwork
+	RegisterStream []*network.Stream
 	// for background
 	background *background.T
 	// set once during initialise
@@ -126,7 +129,7 @@ loop:
 			log.Infof("-><- P2P recieve commend:%s", item.Command)
 			switch item.Command {
 			case "peer":
-				messageOut := P2PMessage{Command: item.Command, Parameters: item.Parameters}
+				messageOut := BusMessage{Command: item.Command, Parameters: item.Parameters}
 				msgBytes, err := proto.Marshal(&messageOut)
 				if err != nil {
 					log.Errorf("Marshal Message Error: %v\n", err)

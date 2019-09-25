@@ -12,32 +12,43 @@ import (
 
 // ConnectPeers connect to all peers in host peerstore
 func (n *Node) connectPeers() {
+loop:
 	for idx, peerID := range n.Host.Peerstore().PeersWithAddrs() {
 		peerInfo := n.Host.Peerstore().PeerInfo(peerID)
 		n.log.Infof("connect to peer[%s] %s... ", peerInfo.ID, util.PrintMaAddrs(peerInfo.Addrs))
 		if len(peerInfo.Addrs) == 0 {
 			n.log.Infof("no Addr: %s", peerID)
-			continue
+			continue loop
 		} else if n.isSameNode(peerInfo) {
 			n.log.Infof("The same node: %s", peerID)
-			continue
+			continue loop
 		} else {
 			for _, addr := range peerInfo.Addrs {
 				n.log.Infof("connectPeers: Dial to peer[%d]:%s", idx, addr.String())
 			}
-			n.directConnect(peerInfo)
+			err := n.directConnect(peerInfo)
+			if err != nil {
+				continue loop
+			}
+			s, err := n.register(&peerInfo)
+			if err != nil {
+				n.Host.Network().ClosePeer(peerInfo.ID)
+				continue loop
+			}
+			n.RegisterStream = append(n.RegisterStream, s)
 		}
 	}
 }
 
-func (n *Node) directConnect(info peer.AddrInfo) {
+func (n *Node) directConnect(info peer.AddrInfo) error {
 	cctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
 	err := n.Host.Connect(cctx, info)
 	if err != nil {
 		n.log.Warn(err.Error())
-		return
+		return err
 	}
+	return nil
 }
 
 // Check on IP and Port and also local addr with the same port

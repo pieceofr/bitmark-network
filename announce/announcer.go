@@ -105,6 +105,7 @@ loop:
 				setSelf(id, addrs)
 			default:
 			}
+
 		case <-delay: // Periodically Announce Self
 			delay = time.After(announceInterval)
 			log.Info("Announce Interval Timeup")
