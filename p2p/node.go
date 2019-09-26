@@ -9,7 +9,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	libp2p "github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	tls "github.com/libp2p/go-libp2p-tls"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -34,13 +33,15 @@ func (n *Node) Setup(configuration *Configuration) error {
 	// Start to listen to p2p stream
 	go n.listen(configuration.Announce)
 	// Create a Multicasting route
-	ps, err := pubsub.NewGossipSub(context.Background(), n.Host)
-	if err != nil {
-		panic(err)
-	}
-	n.MuticastStream = ps
-	sub, err := n.MuticastStream.Subscribe(multicastingTopic)
-	go n.SubHandler(context.Background(), sub)
+	/*
+		ps, err := pubsub.NewGossipSub(context.Background(), n.Host)
+		if err != nil {
+			panic(err)
+		}
+		n.MuticastStream = ps
+		sub, err := n.MuticastStream.Subscribe(multicastingTopic)
+		go n.SubHandler(context.Background(), sub)
+	*/
 	globalData.initialised = true
 	return nil
 }

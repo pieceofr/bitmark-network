@@ -12,7 +12,8 @@ import (
 
 // IDCompare The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
 func IDCompare(ida, idb peerlib.ID) int {
-	return strings.Compare(ida.String(), idb.String())
+	res := strings.Compare(ida.String(), idb.String())
+	return res
 }
 
 // IDEqual if 2 peer id are equal

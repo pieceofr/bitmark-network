@@ -109,7 +109,8 @@ loop:
 		case <-delay: // Periodically Announce Self
 			delay = time.After(announceInterval)
 			log.Info("Announce Interval Timeup")
-			ann.process()
+			//TODO: do self broadcast
+			//ann.process()
 		}
 	}
 }

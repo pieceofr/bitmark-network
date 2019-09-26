@@ -190,8 +190,6 @@ loop:
 			}
 			log.Infof("result[%d]: adding id:%s", i, tag.peerID)
 			addPeer(id, listeners, uint64(time.Now().Unix()))
-			globalData.peerTree.Print(false)
-
 		}
 	}
 

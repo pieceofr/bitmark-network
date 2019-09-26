@@ -7,6 +7,7 @@ package announce
 
 import (
 	"bitmark-network/util"
+	"fmt"
 	"io/ioutil"
 
 	proto "github.com/golang/protobuf/proto"
@@ -60,10 +61,13 @@ func storePeers(peerFile string) error {
 	out, err := proto.Marshal(&peers)
 	if err != nil {
 		globalData.log.Errorf("Failed to marshal peers protobuf:%v", err)
+		return err
 	}
 	if err := ioutil.WriteFile(peerFile, out, 0600); err != nil {
 		globalData.log.Errorf("Failed to write peers to a file:%v", err)
+		return err
 	}
+	fmt.Println("store peer", peerFile)
 	return nil
 }
 
@@ -84,7 +88,6 @@ loop:
 			continue loop
 		}
 		addPeer(id, maAddrs, peer.Timestamp)
-		globalData.peerTree.Print(false)
 	}
 	return peers, nil
 }
