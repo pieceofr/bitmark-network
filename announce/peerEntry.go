@@ -147,7 +147,7 @@ func GetNext(publicKey []byte) (peerlib.ID, []ma.Multiaddr, time.Time, error) {
 func GetRandom(peerID peerlib.ID) (peerlib.ID, []ma.Multiaddr, time.Time, error) {
 	globalData.Lock()
 	defer globalData.Unlock()
-
+	globalData.log.Infof("\x1b[32mTreeCount:%d\x1b[0m", globalData.peerTree.Count())
 retry_loop:
 	for tries := 1; tries <= 5; tries += 1 {
 		max := big.NewInt(int64(globalData.peerTree.Count()))
@@ -166,7 +166,9 @@ retry_loop:
 			break retry_loop
 		}
 		peer := node.Value().(*peerEntry)
+		globalData.log.Infof("\x1b[32mGetRandom Input ID:%s  TreeID:%s\x1b[0m", peerID.String(), peer.peerID.String())
 		if util.IDEqual(peer.peerID, globalData.peerID) || util.IDEqual(peer.peerID, peerID) {
+			globalData.log.Info("\x1b[32mEqual\x1b[0m")
 			continue retry_loop
 		}
 		return peer.peerID, peer.listeners, peer.timestamp, nil

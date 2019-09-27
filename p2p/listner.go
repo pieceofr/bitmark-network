@@ -2,17 +2,14 @@ package p2p
 
 import (
 	"bitmark-network/announce"
-	"bitmark-network/util"
 	"bufio"
-	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/bitmark-inc/bitmarkd/mode"
 	"github.com/bitmark-inc/logger"
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
 	peerlib "github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -20,198 +17,83 @@ const maxBytesRecieve = 2000
 
 //ListenHandler is a host Listening  handler
 type ListenHandler struct {
-	ID  string
+	ID  peerlib.ID
 	log *logger.L
 }
 
 //NewListenHandler return a NewListenerHandler
-func NewListenHandler(ID string, log *logger.L) ListenHandler {
+func NewListenHandler(ID peerlib.ID, log *logger.L) ListenHandler {
 	return ListenHandler{ID: ID, log: log}
 }
 
-func (l *ListenHandler) handleStreamX(stream network.Stream) {
-	log := l.log
-	log.Info("--- Start A New stream --")
-	// Create a buffer stream for non blocking read and write.
-	rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
-loop:
-	for {
-		//data := make([]byte, maxBytesRecieve)
-		data, _, err := rw.ReadLine()
-		if err != nil {
-			log.Error(err.Error())
-			continue loop
-		}
-		log.Infof("len of rRead Data:%d", len(data))
-		if len(data) < 1 {
-			listenerSendError(rw, errors.New("Invalid Request Data"), log)
-			log.Error("length of byte recieved is less than 1")
-		}
-
-		var reqMsg P2PMessage
-		UnmarshalErr := proto.Unmarshal(data, &reqMsg)
-		if UnmarshalErr != nil {
-			listenerSendError(rw, errors.New("Invalid Request Data"), log)
-			log.Error("Unmarshal Request Message Error")
-			continue loop
-		}
-
-		reqChain := string(reqMsg.Data[0])
-		if len(data) < 2 {
-			listenerSendError(rw, err, log)
-		}
-
-		if reqChain != mode.ChainName() {
-			log.Errorf("invalid chain: actual: %q  expect: %s", reqChain, mode.ChainName())
-			listenerSendError(rw, err, log)
-			continue loop
-		}
-		fn := string(reqMsg.Data[1])
-		parameters := reqMsg.Data[2:4]
-		log.Debugf("received message: %q: %x", fn, parameters)
-		//result := []byte{}
-		switch fn {
-		case "R": // params[id, listeners, timestamp]
-			var reqID peerlib.ID
-			var reqListener Addrs
-			reqID, errID := peer.IDFromBytes(parameters[0])
-			errAddr := proto.Unmarshal(parameters[1], &reqListener)
-			if errID != nil || errAddr != nil {
-				listenerSendError(rw, errors.New("Unmarshal error"), log)
-			}
-			timestamp := binary.BigEndian.Uint64(parameters[2])
-			reqMaAddrs := util.GetMultiAddrsFromBytes(reqListener.Address)
-			//TODO: Should not  directly us announce module ... Change the way
-			announce.AddPeer(reqID, reqMaAddrs, timestamp) // id, listeners, timestamp
-
-			//TODO: Should not  directly us announce module ... Change the way
-			randPeerID, randListeners, randTs, err := announce.GetRandom(reqID)
-			if nil != err {
-				log.Errorf("Get a random  node Error %v", err)
-				listenerSendError(rw, err, log)
-				continue loop
-			}
-			randIDPacked, idErr := randPeerID.Marshal()
-			randListenerPackaed, addrErr := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(randListeners)})
-			if idErr != nil || addrErr != nil {
-				listenerSendError(rw, err, log)
-				continue loop
-			}
-			randTsPacked := make([]byte, 8)
-			binary.BigEndian.PutUint64(randTsPacked, uint64(randTs.Unix()))
-			respData := [][]byte{[]byte(mode.ChainName()), []byte(fn), randIDPacked, randListenerPackaed, randTsPacked}
-			reqMsgPacked, err := proto.Marshal(&P2PMessage{Data: respData})
-			if err != nil {
-				listenerSendError(rw, err, log)
-				stream.Reset()
-				continue loop
-			}
-			_, err = rw.Write(reqMsgPacked)
-		}
-		/*
-			if str != "\n" {
-				fmt.Printf("%s RECIEVE:\x1b[32m%s\x1b[0m> ", l.ID, str)
-			}
-		*/
-	}
-}
-
-func listenerSendError(sender *bufio.ReadWriter, err error, log *logger.L) {
-	errorMessage := err.Error()
-	_, wErr := sender.WriteString(errorMessage + "\n")
-	if wErr != nil && log != nil {
-		log.Errorf("Send Error Message Error:%v", err)
-	}
-	if log != nil {
-		log.Errorf("<-- Error Message:%v", err)
-	}
-	sender.Flush()
-}
-
 func (l *ListenHandler) handleStream(stream network.Stream) {
+	defer stream.Close()
 	log := l.log
 	log.Info("--- Start A New stream --")
-	// Create a buffer stream for non blocking read and write.
 	rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
-	defer stream.Reset()
-loop:
 	for {
-		//TODO: Ia any better way to reciece data?
 		req := make([]byte, maxBytesRecieve)
-		lenByte, err := rw.Read(req)
-		log.Info(fmt.Sprintf("%s RECIEVE:\x1b[32m%d\x1b[0m> ", "listener", lenByte))
+		reqLen, err := rw.Read(req)
 		if err != nil {
-			log.Error(err.Error())
-			continue loop
+
+			listenerSendError(rw, nodeChain, err, "-->READ", log)
+			break
 		}
-		if lenByte < 1 {
-			log.Error("length of byte recieved is less than 1")
+		if reqLen < 1 {
+			//listenerSendError(rw, nodeChain, errors.New("length of byte recieved is less than 1"), log)
+			listenerSendError(rw, nodeChain, errors.New("length of byte recieved is less than 1"), "-->READ", log)
 		}
-		reqMessageUnPacked := P2PMessage{}
-		proto.Unmarshal(req, &reqMessageUnPacked)
-		if len(reqMessageUnPacked.Data) == 0 {
-			return
+		reqChain, fn, parameters, err := UnPackP2PMessage(req[:reqLen])
+		if err != nil {
+			listenerSendError(rw, nodeChain, err, "-->Unpack", log)
 		}
-		printP2PMessage(reqMessageUnPacked, log)
-		chain := string(reqMessageUnPacked.Data[0])
-		fn := string(reqMessageUnPacked.Data[1])
-		parameters := reqMessageUnPacked.Data[2:]
+		if len(reqChain) < 2 {
+			listenerSendError(rw, nodeChain, errors.New("Invalid Chain"), "-->Unpack", log)
+		}
+
+		if reqChain != nodeChain {
+			listenerSendError(rw, nodeChain, errors.New("Different Chain"), "-->Chain", log)
+		}
 
 		switch fn {
 		case "R":
-			reqID, err := peerlib.IDFromBytes(parameters[0])
+			reqID, reqMaAddrs, timestamp, err := UnPackRegisterData(parameters)
 			if err != nil {
-				log.Infof(err.Error())
-				continue loop
+				listenerSendError(rw, nodeChain, err, "-->RegData", log)
+				break
 			}
-			var reqListener Addrs
-			errAddr := proto.Unmarshal(parameters[1], &reqListener)
-			if errAddr != nil {
-				log.Error(errAddr.Error())
-				continue loop
-			}
-			reqMaAddrs := util.GetMultiAddrsFromBytes(reqListener.Address)
-			timestamp := binary.BigEndian.Uint64(parameters[2])
-			log.Infof("chain:%s, fn:%s reqID:%s timestamp%d listeners:%s", chain, fn, reqID.String(), timestamp, util.PrintMaAddrs(reqMaAddrs))
+
 			announce.AddPeer(reqID, reqMaAddrs, timestamp) // id, listeners, timestam
-
 			randPeerID, randListeners, randTs, err := announce.GetRandom(reqID)
-			if nil != err {
-				listenerSendError(rw, err, log)
-				continue loop
+			var randData [][]byte
+			if nil != err { // No Random Node sendback this Node
+				randData, err = PackRegisterData(nodeChain, fn, reqID, reqMaAddrs, time.Now())
+				break
 			}
-			randIDPacked, idErr := randPeerID.Marshal()
-			randListenerPackaed, addrErr := proto.Marshal(&Addrs{Address: util.GetBytesFromMultiaddr(randListeners)})
-			if idErr != nil || addrErr != nil {
-				listenerSendError(rw, err, log)
-				continue loop
-			}
-			randTsPacked := make([]byte, 8)
-			binary.BigEndian.PutUint64(randTsPacked, uint64(randTs.Unix()))
-			respData := [][]byte{[]byte(mode.ChainName()), []byte(fn), randIDPacked, randListenerPackaed, randTsPacked}
-			reqMsgPacked, err := proto.Marshal(&P2PMessage{Data: respData})
+			randData, err = PackRegisterData(nodeChain, fn, randPeerID, randListeners, randTs)
+			p2pMessagePacked, err := proto.Marshal(&P2PMessage{Data: randData})
 			if err != nil {
-				listenerSendError(rw, err, log)
-				continue loop
+				listenerSendError(rw, nodeChain, err, "-->radomn node", log)
+				break
 			}
-			_, err = rw.Write(reqMsgPacked)
-		}
-
-		/*
-			respData := P2PMessage{Data: "Hi There"}
-			mockPacked, err := proto.Marshal(&mock)
-			if err != nil {
-				log.Error(err.Error())
-				continue loop
-			}
-			_, err = rw.Write(append(mockPacked, '\r', '\n'))
+			_, err = rw.Write(p2pMessagePacked)
 			rw.Flush()
-			if err != nil {
-				log.Error(err.Error())
-				continue loop
-			}
-		*/
+			log.Info(fmt.Sprintf("WRITE:\x1b[32mLength:%d\x1b[0m> ", len(p2pMessagePacked)))
+		}
 	}
+}
+
+func listenerSendError(sender *bufio.ReadWriter, chain string, err error, logPrefix string, log *logger.L) {
+	errorMessage := [][]byte{[]byte(chain), []byte("E"), []byte(err.Error())}
+	packedP2PMessage, err := proto.Marshal(&P2PMessage{Data: errorMessage})
+	_, wErr := sender.Write(packedP2PMessage)
+	if wErr != nil && log != nil {
+		log.Errorf("%s  \x1b[32mError:%v \x1b[0m", logPrefix, wErr)
+	}
+	if log != nil {
+		fmt.Printf("%s  \x1b[32mError:%v \x1b[0m\n", logPrefix, err)
+	}
+	sender.Flush()
 }
 
 func printP2PMessage(msg P2PMessage, l *logger.L) {

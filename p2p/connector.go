@@ -3,6 +3,7 @@ package p2p
 import (
 	"bitmark-network/util"
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -32,9 +33,11 @@ loop:
 			}
 			s, err := n.register(&peerInfo)
 			if err != nil {
+				n.log.Warn(fmt.Sprintf(":\x1b[31mRegister Failed: %v:\x1b[0m", err))
 				n.Host.Network().ClosePeer(peerInfo.ID)
 				continue loop
 			}
+			n.log.Info(fmt.Sprintf(":\x1b[32mRegister Sucessfull\x1b[0m"))
 			n.RegisterStream = append(n.RegisterStream, s)
 		}
 	}
